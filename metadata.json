@@ -1,0 +1,6 @@
+{
+  "name": "SureDev",
+  "description": "Premium location-based web directory for developers in Abia. Discover, build, and hire world-class tech talent.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
