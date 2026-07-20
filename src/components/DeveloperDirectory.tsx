@@ -42,6 +42,7 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
   const [selectedExperience, setSelectedExperience] = useState('All Experience');
   const [selectedAvailability, setSelectedAvailability] = useState('Any Availability');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   // Sync with hero search trigger
   useEffect(() => {
@@ -193,24 +194,24 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
               <button
                 key={category.name}
                 onClick={() => handleCategoryClick(category.name)}
-                className={`flex items-center justify-between p-5 rounded-[18px] text-left border transition-all cursor-pointer ${
+                className={`flex items-center justify-between p-3.5 sm:p-5 rounded-[18px] text-left border transition-all cursor-pointer min-w-0 ${
                   isSelected
                     ? 'bg-brand-midnight text-white border-brand-midnight shadow-md'
                     : 'bg-white text-brand-midnight border-brand-border hover:border-brand-green hover:shadow-sm'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-white/10' : 'bg-brand-warm-white'}`}>
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 mr-1">
+                  <div className={`p-2 sm:p-2.5 rounded-xl shrink-0 ${isSelected ? 'bg-white/10' : 'bg-brand-warm-white'}`}>
                     {getCategoryIcon(category.icon)}
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm leading-tight">{category.name}</p>
-                    <p className={`text-xs mt-0.5 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-xs sm:text-sm leading-tight truncate" title={category.name}>{category.name}</p>
+                    <p className={`text-[10px] sm:text-xs mt-0.5 leading-none ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>
                       {category.count} profiles
                     </p>
                   </div>
                 </div>
-                <ArrowUpRight size={16} className={isSelected ? 'text-brand-gold' : 'text-gray-300'} />
+                <ArrowUpRight size={16} className={`shrink-0 ${isSelected ? 'text-brand-gold' : 'text-gray-300'}`} />
               </button>
             );
           })}
@@ -325,7 +326,7 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
 
       {/* 5. Developer Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredDevelopers.map((dev) => (
+        {(showAll ? filteredDevelopers : filteredDevelopers.slice(0, 4)).map((dev) => (
           <div
             key={dev.id}
             id={`dev-card-${dev.id}`}
@@ -434,6 +435,18 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
           </div>
         )}
       </div>
+
+      {!showAll && filteredDevelopers.length > 4 && (
+        <div className="flex justify-center mt-12">
+          <button
+            onClick={() => setShowAll(true)}
+            className="px-8 py-3.5 rounded-xl bg-brand-midnight hover:bg-brand-midnight/95 text-white hover:text-brand-gold font-display font-semibold text-xs uppercase tracking-wider shadow-premium transition-all duration-300 cursor-pointer flex items-center gap-2.5 border border-brand-border/20 active:scale-95"
+          >
+            <span>View More Profiles</span>
+            <Layers size={14} />
+          </button>
+        </div>
+      )}
 
     </section>
   );

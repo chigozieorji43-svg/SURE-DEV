@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
-import { TrustedBy } from './components/TrustedBy';
 import { DeveloperDirectory } from './components/DeveloperDirectory';
 import { WhySureDev } from './components/WhySureDev';
-import { FeaturedProjects } from './components/FeaturedProjects';
 import { Testimonials } from './components/Testimonials';
 import { JoinCTA } from './components/JoinCTA';
 import { Footer } from './components/Footer';
@@ -17,17 +15,40 @@ import {
 } from './components/Modals';
 import { Developer, Employer, UserSession, CollabRequest } from './types';
 import { DEVELOPERS as initialDevelopers, EMPLOYERS as initialEmployers } from './data';
+import { dbService } from './lib/firebaseService';
+import { auth, firebaseSignOut, onAuthStateChanged } from './lib/firebase';
 
 // Full Stack Session Role Components
 import { DeveloperDashboard } from './components/DeveloperDashboard';
 import { EmployerDashboard } from './components/EmployerDashboard';
 import { DeveloperDirectoryEmployer } from './components/DeveloperDirectoryEmployer';
 import { EmployerDirectoryDeveloper } from './components/EmployerDirectoryDeveloper';
+import { SureDevAIAssistant } from './components/SureDevAIAssistant';
 
 export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isHireOpen, setIsHireOpen] = useState(false);
+  
+  // Theme Toggle State
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme');
+      return saved === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (darkMode) {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
   
   const [selectedDeveloper, setSelectedDeveloper] = useState<Developer | null>(null);
   const [activeProfile, setActiveProfile] = useState<Developer | null>(null);
@@ -35,147 +56,116 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Core Persistent State Pools for Dynamic Registration
-  const [developers, setDevelopers] = useState<Developer[]>(() => {
-    const stored = localStorage.getItem('suredev_developers');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        // ignore
-      }
-    }
-    return initialDevelopers;
-  });
+  const [developers, setDevelopers] = useState<Developer[]>([]);
+  const [employers, setEmployers] = useState<Employer[]>([]);
+  const [collabRequests, setCollabRequests] = useState<CollabRequest[]>([]);
 
-  const [employers, setEmployers] = useState<Employer[]>(() => {
-    const stored = localStorage.getItem('suredev_employers');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        // ignore
-      }
-    }
-    return initialEmployers;
-  });
-
-  const [userSession, setUserSession] = useState<UserSession | null>(() => {
-    const stored = localStorage.getItem('suredev_user_session');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Also automatically set active view to dashboard if we have a valid session
-        return parsed;
-      } catch (e) {
-        // ignore
-      }
-    }
-    return null;
-  });
-  
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'directory'>(() => {
-    const stored = localStorage.getItem('suredev_user_session');
-    return stored ? 'dashboard' : 'landing';
-  });
-
-  // Sync state changes to localStorage
+  // Subscribe to real-time Cloud Firestore updates (or localStorage fallbacks)
   useEffect(() => {
-    if (userSession) {
-      localStorage.setItem('suredev_user_session', JSON.stringify(userSession));
-    } else {
-      localStorage.removeItem('suredev_user_session');
-    }
-  }, [userSession]);
+    const unsub = dbService.subscribeDevelopers((liveDevs) => {
+      setDevelopers(liveDevs || []);
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('suredev_developers', JSON.stringify(developers));
-  }, [developers]);
+    const unsub = dbService.subscribeEmployers((liveEmps) => {
+      setEmployers(liveEmps || []);
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('suredev_employers', JSON.stringify(employers));
-  }, [employers]);
+    const unsub = dbService.subscribeCollaborationRequests((liveReqs) => {
+      setCollabRequests(liveReqs);
+    });
+    return unsub;
+  }, []);
 
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'directory'>('landing');
+
+  // Sync session and view from Firebase Authentication State changes
   useEffect(() => {
-    const handleGoogleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.user) {
-        const { name, email, avatar } = event.data.user;
-        if (userSession) {
-          // Update the session in-place
-          setUserSession(prev => prev ? {
-            ...prev,
-            isGoogleUser: true,
-            email: email
-          } : null);
+    if (!auth) {
+      setLoadingAuth(false);
+      return;
+    }
 
-          // If they are developer, update developers state
-          if (userSession.accountType === 'developer' && userSession.developerProfileId) {
-            setDevelopers(prev => prev.map(d => {
-              if (d.id === userSession.developerProfileId) {
-                return {
-                  ...d,
-                  name: name,
-                  email: email,
-                  avatar: avatar || d.avatar
-                };
-              }
-              return d;
-            }));
-          } else if (userSession.accountType === 'employer' && userSession.employerProfileId) {
-            setEmployers(prev => prev.map(emp => {
-              if (emp.id === userSession.employerProfileId) {
-                return {
-                  ...emp,
-                  companyName: name + ' Enterprise',
-                  contactPerson: name,
-                  email: email,
-                  companyLogo: avatar || emp.companyLogo
-                };
-              }
-              return emp;
-            }));
-          }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const email = firebaseUser.email || '';
+        const uid = firebaseUser.uid;
+
+        // If a manual signup/registration flow is in progress, do not auto-create
+        // a default profile here. Let the JoinSureDevModal finish the setup.
+        if (localStorage.getItem('suredev_registering') === 'true') {
+          setLoadingAuth(false);
+          return;
         }
-      }
-    };
-    window.addEventListener('message', handleGoogleMessage);
-    return () => window.removeEventListener('message', handleGoogleMessage);
-  }, [userSession]);
 
-  // Collaboration / Friend Request System State
-  const [collabRequests, setCollabRequests] = useState<CollabRequest[]>(() => {
-    const stored = localStorage.getItem('suredev_collab_requests');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        // ignore
-      }
-    }
-    // Preload beautiful mock requests to make the system feel active right away
-    return [
-      {
-        id: 'collab-mock-1',
-        senderId: 'dev-kalu',
-        receiverId: 'dev-chinedu',
-        status: 'pending',
-        message: 'Hey Chinedu, I loved the AbaPay Commerce Gateway! Would you like to partner on an offline logistics supply chain app?',
-        timestamp: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
-      },
-      {
-        id: 'collab-mock-2',
-        senderId: 'dev-amarachi',
-        receiverId: 'dev-chinedu',
-        status: 'accepted',
-        message: "Hi Chinedu, let's integrate the Oru Design Tokens with your payment gateway!",
-        timestamp: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-      }
-    ];
-  });
+        try {
+          const userDoc = await dbService.getUserDoc(uid);
+          
+          if (userDoc && userDoc.accountType) {
+            const accountType = userDoc.accountType as 'developer' | 'employer';
+            
+            let devId: string | undefined;
+            let empId: string | undefined;
 
-  const saveCollabRequests = (requests: CollabRequest[]) => {
-    setCollabRequests(requests);
-    localStorage.setItem('suredev_collab_requests', JSON.stringify(requests));
-  };
+            if (accountType === 'developer') {
+              const profile = await dbService.getDeveloperProfile(uid);
+              if (profile) {
+                devId = uid;
+              } else {
+                await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
+                devId = uid;
+              }
+            } else {
+              const profile = await dbService.getEmployerProfile(uid);
+              if (profile) {
+                empId = uid;
+              } else {
+                await dbService.createDefaultEmployerProfile(uid, email, firebaseUser.displayName || '');
+                empId = uid;
+              }
+            }
+
+            setUserSession({
+              email,
+              accountType,
+              isOnboarded: true,
+              developerProfileId: devId,
+              employerProfileId: empId,
+              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com')
+            });
+            setActiveView('dashboard');
+          } else {
+            // New user, default to developer profile so they are immediately onboarded
+            await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
+            
+            setUserSession({
+              email,
+              accountType: 'developer',
+              isOnboarded: true,
+              developerProfileId: uid,
+              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com')
+            });
+            setActiveView('dashboard');
+          }
+        } catch (error) {
+          console.error("Error fetching/creating user profile on auth change:", error);
+        }
+      } else {
+        setUserSession(null);
+        setActiveView('landing');
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleSendCollabRequest = (senderId: string, receiverId: string, message?: string) => {
     // Check if request already exists
@@ -185,33 +175,21 @@ export default function App() {
     );
     if (exists) return;
 
-    const newRequest: CollabRequest = {
-      id: `collab-${Date.now()}`,
-      senderId,
-      receiverId,
-      status: 'pending',
-      message,
-      timestamp: new Date().toISOString(),
-    };
-    saveCollabRequests([newRequest, ...collabRequests]);
+    dbService.sendCollabRequest(senderId, receiverId, message);
   };
 
   const handleAcceptCollabRequest = (requestId: string) => {
-    saveCollabRequests(
-      collabRequests.map(r => r.id === requestId ? { ...r, status: 'accepted' } : r)
-    );
+    const currentUserId = userSession?.developerProfileId || userSession?.employerProfileId || 'anonymous';
+    dbService.updateCollabRequestStatus(requestId, 'accepted', currentUserId);
   };
 
   const handleDeclineCollabRequest = (requestId: string) => {
-    saveCollabRequests(
-      collabRequests.map(r => r.id === requestId ? { ...r, status: 'declined' } : r)
-    );
+    const currentUserId = userSession?.developerProfileId || userSession?.employerProfileId || 'anonymous';
+    dbService.updateCollabRequestStatus(requestId, 'declined', currentUserId);
   };
 
   const handleCancelCollabRequest = (requestId: string) => {
-    saveCollabRequests(
-      collabRequests.filter(r => r.id !== requestId)
-    );
+    dbService.cancelCollabRequest(requestId);
   };
 
 
@@ -261,9 +239,10 @@ export default function App() {
 
   // Handle Dynamic Registration / Setup Finish Callback
   const handleJoinSuccess = (formData: any, accountType: 'developer' | 'employer') => {
+    const profileId = formData.id || (accountType === 'developer' ? `dev-${Date.now()}` : `emp-${Date.now()}`);
     if (accountType === 'developer') {
       const newDev: Developer = {
-        id: `dev-${Date.now()}`,
+        id: profileId,
         name: formData.name,
         title: formData.title || 'Specialist Engineer',
         avatar: formData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200',
@@ -286,17 +265,18 @@ export default function App() {
         qualification: formData.qualification
       };
       setDevelopers(prev => [newDev, ...prev]);
+      dbService.saveDeveloperProfile(profileId, newDev, profileId);
       setUserSession({
         email: formData.email,
         accountType: 'developer',
         isOnboarded: true,
-        developerProfileId: newDev.id,
+        developerProfileId: profileId,
         isGoogleUser: formData.isGoogleUser
       });
       setActiveView('dashboard');
     } else {
       const newEmp: Employer = {
-        id: `emp-${Date.now()}`,
+        id: profileId,
         companyName: formData.companyName,
         companyLogo: formData.companyLogo || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=200&h=200',
         contactPerson: formData.contactPerson,
@@ -312,11 +292,12 @@ export default function App() {
         targetQualifications: formData.targetQualifications
       };
       setEmployers(prev => [newEmp, ...prev]);
+      dbService.saveEmployerProfile(profileId, newEmp, profileId);
       setUserSession({
         email: formData.email,
         accountType: 'employer',
         isOnboarded: true,
-        employerProfileId: newEmp.id,
+        employerProfileId: profileId,
         isGoogleUser: formData.isGoogleUser
       });
       setActiveView('dashboard');
@@ -324,28 +305,115 @@ export default function App() {
   };
 
   // Handle Login Authentication
-  const handleLoginSuccess = (email: string, accountType: 'developer' | 'employer', isGoogleUser?: boolean) => {
+  const handleLoginSuccess = (
+    email: string, 
+    accountType: 'developer' | 'employer', 
+    isGoogleUser?: boolean,
+    displayName?: string,
+    avatar?: string
+  ) => {
     const existingDev = developers.find(d => d.email?.toLowerCase() === email.toLowerCase());
     const existingEmp = employers.find(e => e.email?.toLowerCase() === email.toLowerCase());
+
+    let devId = existingDev?.id;
+    let empId = existingEmp?.id;
+
+    if (accountType === 'developer') {
+      if (!existingDev) {
+        // Create a developer profile using Google info so they don't get mock data
+        const newDev: Developer = {
+          id: `dev-${Date.now()}`,
+          name: displayName || email.split('@')[0],
+          title: 'Software Developer',
+          avatar: avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200',
+          location: 'Aba',
+          experience: 3,
+          skills: ['React', 'TypeScript', 'Tailwind CSS'],
+          availability: 'immediate',
+          bio: `Vetted Developer dedicated to crafting highly performant applications and customized localized solutions based in Aba, Abia State.`,
+          githubUrl: 'https://github.com',
+          linkedinUrl: 'https://linkedin.com',
+          twitterUrl: 'https://twitter.com',
+          portfolioUrl: 'https://portfolio.ng',
+          featured: false,
+          projects: [],
+          email: email,
+          coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200&h=400',
+          currentWorkplace: 'Independent Consultant',
+          phone: '',
+          workExperience: [],
+          qualification: 'Self-Taught Industry Specialist'
+        };
+        setDevelopers(prev => [newDev, ...prev]);
+        dbService.saveDeveloperProfile(newDev.id, newDev, newDev.id);
+        devId = newDev.id;
+      }
+    }
+
+    if (accountType === 'employer') {
+      if (!existingEmp) {
+        // Create an employer profile using Google info
+        const newEmp: Employer = {
+          id: `emp-${Date.now()}`,
+          companyName: displayName ? `${displayName}'s Company` : `${email.split('@')[0]}'s Venture`,
+          companyLogo: avatar || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=200&h=200',
+          contactPerson: displayName || email.split('@')[0],
+          description: `Leading local brand based in Aba, Abia State.`,
+          website: 'https://cooperative.ng',
+          phone: '',
+          email: email,
+          location: 'Aba',
+          industry: 'E-commerce & Retail',
+          desiredSkills: ['React', 'TypeScript', 'Tailwind CSS'],
+          hiringCategories: [],
+          hiringTypes: ['Full-time'],
+          targetQualifications: 'Vetted Coding Bootcamp Graduate'
+        };
+        setEmployers(prev => [newEmp, ...prev]);
+        dbService.saveEmployerProfile(newEmp.id, newEmp, newEmp.id);
+        empId = newEmp.id;
+      }
+    }
 
     setUserSession({
       email,
       accountType,
       isOnboarded: true,
-      developerProfileId: existingDev ? existingDev.id : (accountType === 'developer' ? developers[0]?.id : undefined),
-      employerProfileId: existingEmp ? existingEmp.id : (accountType === 'employer' ? employers[0]?.id : undefined),
+      developerProfileId: accountType === 'developer' ? devId : undefined,
+      employerProfileId: accountType === 'employer' ? empId : undefined,
       isGoogleUser: isGoogleUser
     });
     setActiveView('dashboard');
   };
 
   // Handle Logout Action
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (auth) {
+      try {
+        await firebaseSignOut(auth);
+      } catch (err) {
+        console.error("Firebase sign out failed:", err);
+      }
+    }
     setUserSession(null);
     setActiveView('landing');
     setActiveProfile(null);
     setActiveTrackPage(null);
   };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-brand-warm-white flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="relative w-16 h-16 mb-4">
+            <div className="absolute inset-0 rounded-full border-4 border-emerald-100"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
+          </div>
+          <p className="text-sm font-medium text-brand-midnight">Loading your SureDev session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-brand-warm-white selection:bg-brand-green/20 selection:text-brand-midnight">
@@ -369,6 +437,8 @@ export default function App() {
           setActiveView('landing');
           setTimeout(() => handleSectionScroll(sectionId), 150);
         }}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode(!darkMode)}
       />
 
       {/* RENDER SEQUENCE MATRIX */}
@@ -405,6 +475,12 @@ export default function App() {
             developer={developers.find(d => d.id === userSession.developerProfileId) || developers[0]}
             onUpdateDeveloper={(updated) => {
               setDevelopers(prev => prev.map(d => d.id === updated.id ? updated : d));
+              dbService.saveDeveloperProfile(updated.id, updated, updated.id);
+              setUserSession(prev => prev ? {
+                ...prev,
+                profileImageUrl: updated.profileImageUrl || updated.avatar,
+                hasCustomProfileImage: updated.hasCustomProfileImage
+              } : null);
             }}
             onPreviewProfile={() => {
               const dev = developers.find(d => d.id === userSession.developerProfileId) || developers[0];
@@ -423,6 +499,12 @@ export default function App() {
             employer={employers.find(e => e.id === userSession.employerProfileId) || employers[0]}
             onUpdateEmployer={(updated) => {
               setEmployers(prev => prev.map(e => e.id === updated.id ? updated : e));
+              dbService.saveEmployerProfile(updated.id, updated, updated.id);
+              setUserSession(prev => prev ? {
+                ...prev,
+                profileImageUrl: updated.profileImageUrl || updated.companyLogo,
+                hasCustomProfileImage: updated.hasCustomProfileImage
+              } : null);
             }}
             onPreviewProfile={() => {
               // Toggle directory view to preview active hires
@@ -465,9 +547,6 @@ export default function App() {
             onBrowseClick={() => handleSectionScroll('developers-section')}
           />
 
-          {/* 3. Social Validation Grid */}
-          <TrustedBy />
-
           {/* 4. Filterable Developer Directory & Taxonomy */}
           <DeveloperDirectory 
             initialSearchQuery={searchQuery}
@@ -482,12 +561,6 @@ export default function App() {
 
           {/* 5. Core Value Propositions ("Why SureDev") */}
           <WhySureDev />
-
-          {/* 6. Dynamic Project Showcase */}
-          <FeaturedProjects 
-            onViewDeveloper={handleViewProfile}
-            developers={developers}
-          />
 
           {/* 7. Client Testimonial Endorsements */}
           <Testimonials />
@@ -539,6 +612,9 @@ export default function App() {
           setIsJoinOpen(true);
         }}
       />
+
+      {/* Floating AI Assistant Widget */}
+      <SureDevAIAssistant />
 
     </div>
   );

@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { Developer, Project, CollabRequest } from '../types';
 import { GoogleInbox } from './GoogleInbox';
+import { uploadFileToStorage, uploadProfileImage } from '../lib/firebaseService';
+import { UserAvatar } from './UserAvatar';
 
 interface DeveloperDashboardProps {
   developer: Developer;
@@ -83,6 +85,11 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
   // Avatar and Cover mock states
   const [avatar, setAvatar] = useState(developer.avatar);
   const [coverPhoto, setCoverPhoto] = useState(developer.coverPhoto || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200&h=400');
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarSuccess, setAvatarSuccess] = useState<boolean>(false);
 
   // General Settings
   const [password, setPassword] = useState('••••••••');
@@ -179,25 +186,139 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
     setProjects(projects.filter(p => p.id !== id));
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        setAvatarError('Only JPG, JPEG, PNG, and WebP images are allowed.');
+        return;
+      }
+
+      // Validate size
+      if (file.size > 5 * 1024 * 1024) {
+        setAvatarError('File size exceeds the 5MB limit.');
+        return;
+      }
+
+      setAvatarError(null);
+      setAvatarSuccess(false);
+      setAvatarProgress(0);
+      setIsUploading(true);
+
+      try {
+        const uploadUrl = await uploadProfileImage(
+          developer.id,
+          file,
+          'developer',
+          (progress) => {
+            setAvatarProgress(progress);
+          }
+        );
+
+        setAvatar(uploadUrl);
+        setAvatarSuccess(true);
+        setAvatarProgress(null);
+
+        const updatedDev: Developer = {
+          ...developer,
+          avatar: uploadUrl,
+          profileImageUrl: uploadUrl,
+          hasCustomProfileImage: true,
+          name,
+          title,
+          location,
+          experience: parseInt(experience) || 0,
+          bio,
+          currentWorkplace,
+          githubUrl,
+          linkedinUrl,
+          twitterUrl,
+          portfolioUrl,
+          email,
+          phone,
+          availability,
+          skills,
+          workExperience: experiences,
+          projects: projects,
+        };
+        onUpdateDeveloper(updatedDev);
+        setTimeout(() => setAvatarSuccess(false), 4000);
+      } catch (err: any) {
+        console.error("Storage upload failed:", err);
+        setAvatarError(err.message || 'Image upload failed. Please try again.');
+        setAvatarProgress(null);
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCoverPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit.');
+        return;
+      }
+      setIsUploading(true);
+      try {
+        const uploadUrl = await uploadFileToStorage(file, 'covers', coverPhoto);
+        setCoverPhoto(uploadUrl);
+        const updatedDev: Developer = {
+          ...developer,
+          coverPhoto: uploadUrl,
+          name,
+          title,
+          location,
+          experience: parseInt(experience) || 0,
+          bio,
+          currentWorkplace,
+          githubUrl,
+          linkedinUrl,
+          twitterUrl,
+          portfolioUrl,
+          email,
+          phone,
+          availability,
+          skills,
+          workExperience: experiences,
+          projects: projects,
+        };
+        onUpdateDeveloper(updatedDev);
+      } catch (err: any) {
+        console.error("Storage upload failed, falling back to base64:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          setCoverPhoto(base64);
+          const updatedDev: Developer = {
+            ...developer,
+            coverPhoto: base64,
+            name,
+            title,
+            location,
+            experience: parseInt(experience) || 0,
+            bio,
+            currentWorkplace,
+            githubUrl,
+            linkedinUrl,
+            twitterUrl,
+            portfolioUrl,
+            email,
+            phone,
+            availability,
+            skills,
+            workExperience: experiences,
+            projects: projects,
+          };
+          onUpdateDeveloper(updatedDev);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -214,26 +335,36 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/30" />
-          <label className="absolute bottom-4 right-4 px-4 py-2 rounded-xl bg-white/20 backdrop-blur-md hover:bg-white/30 text-white font-semibold text-xs border border-white/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
-            <Upload size={14} />
-            <span>Change Cover</span>
-            <input type="file" accept="image/*" onChange={handleCoverChange} className="hidden" />
-          </label>
         </div>
 
         {/* Profile Info Overlay */}
         <div className="px-8 pb-8 pt-0 -mt-12 md:-mt-16 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex flex-col md:flex-row items-start md:items-end gap-6">
             <div className="relative group">
-              <img 
+              <UserAvatar 
+                name={name}
+                email={email}
                 src={avatar} 
-                alt={name} 
-                className="w-24 h-24 md:w-32 md:h-32 rounded-2xl object-cover border-4 border-white shadow-premium bg-brand-warm-white"
+                hasCustomProfileImage={developer.hasCustomProfileImage}
+                sizeClassName="w-24 h-24 md:w-32 md:h-32"
+                roundedClassName="rounded-2xl"
+                className="border-4 border-white shadow-premium bg-brand-warm-white text-3xl md:text-5xl"
               />
-              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white">
-                <Upload size={18} />
-                <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+              <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white text-center p-2">
+                <Upload size={18} className="mb-1" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Change Photo</span>
+                <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleAvatarChange} className="hidden" />
               </label>
+
+              {/* Uploading progress overlay */}
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center text-white">
+                  <RefreshCw className="animate-spin text-brand-green mb-1" size={20} />
+                  <span className="text-[10px] font-mono font-bold">
+                    {avatarProgress !== null ? `${avatarProgress}%` : 'Compressing...'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="mb-2">
               <div className="flex items-center gap-3">
@@ -245,6 +376,21 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
                   Developer Portal
                 </span>
               </div>
+
+              {/* Upload notifications */}
+              {avatarError && (
+                <div className="mt-1 text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center gap-1 max-w-md animate-pulse">
+                  <AlertCircle size={12} />
+                  <span>{avatarError}</span>
+                </div>
+              )}
+              {avatarSuccess && (
+                <div className="mt-1 text-xs text-brand-green bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 max-w-md">
+                  <CheckCircle size={12} />
+                  <span>Profile picture updated successfully!</span>
+                </div>
+              )}
+
               <p className="text-brand-green font-medium mt-0.5">{title}</p>
               <p className="text-gray-400 text-xs mt-1 font-semibold uppercase tracking-wider flex items-center gap-1">
                 <MapPin size={12} className="text-brand-green" />

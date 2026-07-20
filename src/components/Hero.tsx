@@ -61,7 +61,7 @@ export const Hero: React.FC<HeroProps> = ({
               </span> in Abia.
             </h1>
             <p className="text-gray-500 text-lg md:text-xl font-normal max-w-xl leading-relaxed">
-              SureDev connects elite software engineers, product designers, and systems architects in Aba, Umuahia, and beyond with world-class local and global teams.
+              SureDev connects elite software engineers, product designers, and developers in Aba, Umuahia, and beyond with world-class local and global teams.
             </p>
           </motion.div>
 
@@ -71,7 +71,7 @@ export const Hero: React.FC<HeroProps> = ({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             onSubmit={handleSearchSubmit}
-            className="w-full max-w-lg flex items-center bg-white border border-brand-border rounded-[18px] p-2 shadow-premium hover:shadow-premium-hover transition-all duration-300 group"
+            className="w-full max-w-lg flex items-center bg-white dark:bg-[#0B1311] border border-brand-border dark:border-white/10 rounded-[18px] p-2 shadow-premium hover:shadow-premium-hover transition-all duration-300 group"
           >
             <div className="flex-1 flex items-center gap-3 px-3">
               <Search className="text-gray-400 group-focus-within:text-brand-green transition-colors" size={20} />
@@ -80,12 +80,12 @@ export const Hero: React.FC<HeroProps> = ({
                 placeholder="Search Skills (e.g., React, Go, Figma...)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent border-none outline-none text-brand-midnight text-base font-normal placeholder-gray-400 py-3"
+                className="w-full bg-transparent border-none outline-none text-brand-midnight dark:text-white text-base font-normal placeholder-gray-400 py-3"
               />
             </div>
             <button
               type="submit"
-              className="px-6 py-3.5 rounded-[14px] bg-brand-midnight hover:bg-brand-midnight/90 text-white font-medium text-sm transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+              className="px-6 py-3.5 rounded-[14px] bg-brand-midnight hover:bg-brand-midnight/90 dark:bg-brand-green dark:hover:bg-emerald-700 text-white font-medium text-sm transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
             >
               Search
             </button>
@@ -121,13 +121,13 @@ export const Hero: React.FC<HeroProps> = ({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.1 }}
-            className="relative w-full max-w-[440px] aspect-square rounded-[32px] overflow-hidden border border-brand-border shadow-premium bg-white"
+            className="relative w-full max-w-[560px] aspect-square rounded-[32px] overflow-hidden border border-brand-border/90 shadow-2xl bg-white p-2"
           >
             <img
               src={HERO_IMAGE}
               alt="SureDev Collaboration illustration"
               referrerPolicy="no-referrer"
-              className="w-full h-full object-cover p-3 rounded-[32px]"
+              className="w-full h-full object-cover rounded-[24px]"
             />
             {/* Soft inner vignette gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-brand-midnight/10 via-transparent to-transparent pointer-events-none" />
@@ -143,14 +143,14 @@ export const Hero: React.FC<HeroProps> = ({
               repeat: Infinity,
               ease: "easeInOut",
             }}
-            className="absolute -top-6 -left-6 md:-left-10 bg-white/90 backdrop-blur-md p-4 rounded-[20px] shadow-premium border border-brand-border flex items-center gap-3"
+            className="absolute -top-6 -left-6 md:-left-10 bg-white/90 dark:bg-[#0B1311]/90 backdrop-blur-md p-4 rounded-[20px] shadow-premium border border-brand-border dark:border-white/10 flex items-center gap-3"
           >
-            <div className="w-10 h-10 rounded-xl bg-brand-midnight flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-xl bg-brand-midnight dark:bg-brand-green flex items-center justify-center text-white">
               <Github size={20} />
             </div>
             <div>
-              <p className="text-xs text-gray-400 font-medium tracking-wide"> Abia Tech Ecosystem </p>
-              <p className="text-sm font-display font-bold text-brand-midnight"> Verified Contributors </p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 font-medium tracking-wide"> Abia Tech Ecosystem </p>
+              <p className="text-sm font-display font-bold text-brand-midnight dark:text-white"> Verified Contributors </p>
             </div>
           </motion.div>
 
@@ -164,46 +164,16 @@ export const Hero: React.FC<HeroProps> = ({
               repeat: Infinity,
               ease: "easeInOut",
             }}
-            className="absolute -bottom-8 -right-4 bg-white/90 backdrop-blur-md px-4 py-3.5 rounded-[20px] shadow-premium border border-brand-border flex items-center gap-3"
+            className="absolute -bottom-8 -right-4 bg-white/90 dark:bg-[#0B1311]/90 backdrop-blur-md px-4 py-3.5 rounded-[20px] shadow-premium border border-brand-border dark:border-white/10 flex items-center gap-3"
           >
             <div className="w-8 h-8 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
               <Code size={16} />
             </div>
             <div className="text-left">
               <p className="text-[10px] uppercase font-bold tracking-wider text-brand-green">Availability</p>
-              <p className="text-xs font-display font-bold text-brand-midnight">Immediate Booking Live</p>
+              <p className="text-xs font-display font-bold text-brand-midnight dark:text-white">Immediate Booking Live</p>
             </div>
           </motion.div>
-
-          {/* Floating Element 3: Database Badge */}
-          <motion.div
-            animate={{
-              x: [0, 8, 0],
-            }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="absolute top-1/2 -right-8 bg-brand-midnight/95 text-white p-3.5 rounded-[18px] shadow-premium border border-white/10 hidden md:flex items-center gap-3"
-          >
-            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-gold">
-              <ShieldCheck size={18} />
-            </div>
-            <div className="text-left">
-              <p className="text-[10px] text-gray-400 font-medium">Verification Status</p>
-              <p className="text-xs font-semibold text-white">Verified Registry Active</p>
-            </div>
-          </motion.div>
-
-          {/* Floating Element 4: Mini Code Snippet in corner */}
-          <div className="absolute bottom-6 -left-8 bg-zinc-950 p-4 rounded-[18px] shadow-premium border border-zinc-800 text-left font-mono text-[10px] text-emerald-400 hidden sm:block max-w-[200px]">
-            <p className="text-gray-500">// SureDev API Match</p>
-            <p className="text-pink-400">const<span className="text-white"> dev = </span>await<span className="text-white"> SureDev.match(&#123;</span></p>
-            <p className="pl-3">location: <span className="text-yellow-200">"Aba"</span>,</p>
-            <p className="pl-3">skills: [<span className="text-yellow-200">"React"</span>, <span className="text-yellow-200">"Go"</span>]</p>
-            <p className="text-white">&#125;);</p>
-          </div>
         </div>
 
       </div>

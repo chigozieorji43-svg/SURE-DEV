@@ -38,6 +38,8 @@ export interface Developer {
     description: string;
   }>;
   qualification?: string;
+  profileImageUrl?: string;
+  hasCustomProfileImage?: boolean;
 }
 
 export interface Employer {
@@ -55,6 +57,8 @@ export interface Employer {
   hiringCategories: string[];
   hiringTypes: string[]; // ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
   targetQualifications?: string;
+  profileImageUrl?: string;
+  hasCustomProfileImage?: boolean;
 }
 
 export type AccountType = 'developer' | 'employer';
@@ -66,6 +70,8 @@ export interface UserSession {
   developerProfileId?: string;
   employerProfileId?: string;
   isGoogleUser?: boolean;
+  profileImageUrl?: string;
+  hasCustomProfileImage?: boolean;
 }
 
 

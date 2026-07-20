@@ -28,7 +28,7 @@ export const Testimonials: React.FC = () => {
           {TESTIMONIALS.map((testimonial) => (
             <div
               key={testimonial.id}
-              className="relative bg-white/70 backdrop-blur-md rounded-[24px] p-8 md:p-10 border border-brand-border/60 shadow-premium flex flex-col justify-between hover:shadow-premium-hover hover:border-brand-green/20 transition-all duration-300"
+              className="relative bg-white/70 dark:bg-[#0B1311]/70 backdrop-blur-md rounded-[24px] p-8 md:p-10 border border-brand-border/60 dark:border-white/10 shadow-premium flex flex-col justify-between hover:shadow-premium-hover hover:border-brand-green/20 transition-all duration-300"
             >
               {/* Decorative Quote Icon */}
               <div className="absolute top-6 right-8 text-brand-green/10">
@@ -37,25 +37,25 @@ export const Testimonials: React.FC = () => {
 
               <div>
                 {/* Logo or Company Badge */}
-                <div className="inline-flex px-3.5 py-1.5 rounded-lg bg-brand-midnight text-white font-display font-bold text-xs tracking-wider uppercase mb-6">
+                <div className="inline-flex px-3.5 py-1.5 rounded-lg bg-brand-midnight dark:bg-brand-green text-white font-display font-bold text-xs tracking-wider uppercase mb-6">
                   {testimonial.logo}
                 </div>
 
-                <p className="text-gray-600 italic text-sm md:text-base leading-relaxed mb-8">
+                <p className="text-gray-600 dark:text-gray-300 italic text-sm md:text-base leading-relaxed mb-8">
                   "{testimonial.quote}"
                 </p>
               </div>
 
               {/* Author Row */}
-              <div className="flex items-center gap-4 border-t border-brand-border/60 pt-6">
+              <div className="flex items-center gap-4 border-t border-brand-border/60 dark:border-white/5 pt-6">
                 <img
                   src={testimonial.avatar}
                   alt={testimonial.author}
                   referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-full object-cover border border-brand-border"
+                  className="w-11 h-11 rounded-full object-cover border border-brand-border dark:border-white/10"
                 />
                 <div className="text-left">
-                  <h4 className="font-display font-bold text-sm text-brand-midnight leading-snug">
+                  <h4 className="font-display font-bold text-sm text-brand-midnight dark:text-white leading-snug">
                     {testimonial.author}
                   </h4>
                   <p className="text-xs text-gray-400 mt-0.5 font-medium">

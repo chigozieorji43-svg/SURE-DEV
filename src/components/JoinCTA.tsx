@@ -40,13 +40,13 @@ export const JoinCTA: React.FC<JoinCTAProps> = ({ onJoinClick, onHireClick }) =>
           <div className="relative flex flex-wrap justify-center items-center gap-4 mt-10">
             <button
               onClick={onHireClick}
-              className="px-8 py-4 rounded-[14px] bg-white hover:bg-brand-warm-white text-brand-midnight font-bold text-sm shadow-premium cursor-pointer transition-all hover:scale-105"
+              className="px-8 py-4 rounded-[14px] bg-[#FAFBFA] text-[#071A16] font-bold text-sm shadow-premium cursor-pointer transition-all hover:scale-105 hover:bg-white"
             >
               Hire Local Innovators
             </button>
             <button
               onClick={onJoinClick}
-              className="group inline-flex items-center gap-2 px-8 py-4 rounded-[14px] bg-brand-midnight text-white font-semibold text-sm hover:bg-brand-midnight/90 border border-white/10 cursor-pointer transition-all"
+              className="group inline-flex items-center gap-2 px-8 py-4 rounded-[14px] bg-brand-midnight dark:bg-transparent text-white font-semibold text-sm hover:bg-brand-midnight/90 border border-white/10 dark:border-white/20 cursor-pointer transition-all hover:scale-105"
             >
               Apply to Registry
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />

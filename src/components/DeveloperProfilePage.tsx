@@ -423,7 +423,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-brand-green animate-pulse" />
             <span className="text-xs font-mono font-bold text-gray-500 uppercase">
-              VETTED ID: SUREDEV-{developer.id.toUpperCase()}
+              ACTIVE VETTED MEMBER
             </span>
           </div>
         </div>

@@ -3,17 +3,26 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Briefcase, MapPin, Calendar, Github, Linkedin, 
   Twitter, Globe, Mail, ArrowRight, CheckCircle, Upload, Lock,
-  Award, FileText, Send, Terminal, User, Cpu, History, BookOpen, Star, Sparkles, Check, ChevronRight, Activity
+  Award, FileText, Send, Terminal, User, Cpu, History, BookOpen, Star, Sparkles, Check, ChevronRight, Activity,
+  Eye, EyeOff
 } from 'lucide-react';
 import { Developer, Project } from '../types';
 import { 
   auth, 
+  db,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  isFirebaseConfigured 
+  isFirebaseConfigured,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  collection,
+  query,
+  where,
+  getDocs
 } from '../lib/firebase';
+import { uploadFileToStorage, dbService } from '../lib/firebaseService';
 
 interface DeveloperDetailsModalProps {
   isOpen: boolean;
@@ -968,6 +977,9 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
   const [step, setStep] = useState(0); // Step 0: Choose Account Type, Step 1-2: Onboarding
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [createdUid, setCreatedUid] = useState<string | null>(null);
+  const [showDevPassword, setShowDevPassword] = useState(false);
+  const [showEmpPassword, setShowEmpPassword] = useState(false);
   
   // Developer Form State
   const [devData, setDevData] = useState({
@@ -1034,39 +1046,37 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
   }, [accountType]);
 
   const handleGoogleSignUp = async () => {
-    if (isFirebaseConfigured && auth) {
-      setIsLoading(true);
-      setError(null);
+    if (auth) {
       try {
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
         const result = await signInWithPopup(auth, provider);
-        const googleEmail = result.user?.email;
-        const displayName = result.user?.displayName || '';
-        const photoURL = result.user?.photoURL || '';
+        const firebaseUser = result.user;
         
-        if (googleEmail) {
-          if (accountType === 'developer') {
-            setDevData(prev => ({
-              ...prev,
-              name: displayName || prev.name || 'Google User',
-              email: googleEmail,
-              avatar: photoURL || prev.avatar
-            }));
-            setGoogleConnected(true);
-          } else if (accountType === 'employer') {
-            setEmpData(prev => ({
-              ...prev,
-              contactPerson: displayName || prev.contactPerson || 'Google User',
-              email: googleEmail,
-              companyLogo: photoURL || prev.companyLogo
-            }));
-            setGoogleConnected(true);
-          }
+        const name = firebaseUser.displayName || '';
+        const email = firebaseUser.email || '';
+        const avatar = firebaseUser.photoURL || '';
+
+        if (accountType === 'developer') {
+          setDevData(prev => ({
+            ...prev,
+            name: name,
+            email: email,
+            avatar: avatar || prev.avatar
+          }));
+          setGoogleConnected(true);
+        } else if (accountType === 'employer') {
+          setEmpData(prev => ({
+            ...prev,
+            contactPerson: name,
+            email: email,
+            companyLogo: avatar || prev.companyLogo
+          }));
+          setGoogleConnected(true);
         }
       } catch (err: any) {
-        setError(err.message || "Failed to authenticate with Google.");
-      } finally {
-        setIsLoading(false);
+        console.error("Google Sign-Up Error:", err);
+        alert(err.message || "Failed to authenticate with Google via Firebase.");
       }
     } else {
       const width = 500;
@@ -1088,22 +1098,34 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'avatar' | 'companyLogo') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'avatar' | 'companyLogo') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('File size exceeds 2MB limit.');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
+        const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
+        const uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
         if (field === 'avatar') {
-          setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
+          setDevData((prev) => ({ ...prev, avatar: uploadUrl }));
         } else {
-          setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
+          setEmpData((prev) => ({ ...prev, companyLogo: uploadUrl }));
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err: any) {
+        console.error("Storage upload failed, falling back to base64:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (field === 'avatar') {
+            setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
+          } else {
+            setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -1116,37 +1138,70 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent, field: 'avatar' | 'companyLogo') => {
+  const handleDrop = async (e: React.DragEvent, field: 'avatar' | 'companyLogo') => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('File size exceeds 2MB limit.');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
+        const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
+        const uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
         if (field === 'avatar') {
-          setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
+          setDevData((prev) => ({ ...prev, avatar: uploadUrl }));
         } else {
-          setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
+          setEmpData((prev) => ({ ...prev, companyLogo: uploadUrl }));
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err: any) {
+        console.error("Storage upload failed, falling back to base64:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (field === 'avatar') {
+            setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
+          } else {
+            setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
   const handleDevSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isFirebaseConfigured && auth && !googleConnected) {
+    if (auth) {
       setIsLoading(true);
       setError(null);
+      localStorage.setItem('suredev_registering', 'true');
       try {
-        await createUserWithEmailAndPassword(auth, devData.email, devData.password);
+        const passwordToUse = googleConnected ? "GoogleAuthPass123!" : devData.password;
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, devData.email, passwordToUse);
+          if (userCredential.user) {
+            setCreatedUid(userCredential.user.uid);
+            await sendEmailVerification(userCredential.user).catch((e) => {
+              console.warn("Failed to send email verification:", e);
+            });
+            alert("A verification link has been dispatched to your email address. Please verify to fully secure your profile.");
+          }
+        } catch (fbErr: any) {
+          // If already in use and Google is connected, let them proceed
+          if (fbErr.code === 'auth/email-already-in-use' && googleConnected) {
+            // allow to proceed
+          } else if (fbErr.code === 'auth/email-already-in-use') {
+            throw new Error("This email is already associated with an account. Please sign in or use a different email.");
+          } else {
+            throw fbErr;
+          }
+        }
         setStep(3); // success state
       } catch (err: any) {
         setError(err.message || "Failed to register account via Firebase.");
+        localStorage.removeItem('suredev_registering');
       } finally {
         setIsLoading(false);
       }
@@ -1157,14 +1212,35 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
 
   const handleEmpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isFirebaseConfigured && auth && !googleConnected) {
+    if (auth) {
       setIsLoading(true);
       setError(null);
+      localStorage.setItem('suredev_registering', 'true');
       try {
-        await createUserWithEmailAndPassword(auth, empData.email, empData.password);
+        const passwordToUse = googleConnected ? "GoogleAuthPass123!" : empData.password;
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, empData.email, passwordToUse);
+          if (userCredential.user) {
+            setCreatedUid(userCredential.user.uid);
+            await sendEmailVerification(userCredential.user).catch((e) => {
+              console.warn("Failed to send email verification:", e);
+            });
+            alert("A verification link has been dispatched to your email address. Please verify to fully secure your company account.");
+          }
+        } catch (fbErr: any) {
+          // If already in use and Google is connected, let them proceed
+          if (fbErr.code === 'auth/email-already-in-use' && googleConnected) {
+            // allow to proceed
+          } else if (fbErr.code === 'auth/email-already-in-use') {
+            throw new Error("This email is already associated with an account. Please sign in or use a different email.");
+          } else {
+            throw fbErr;
+          }
+        }
         setStep(3); // success state
       } catch (err: any) {
         setError(err.message || "Failed to register account via Firebase.");
+        localStorage.removeItem('suredev_registering');
       } finally {
         setIsLoading(false);
       }
@@ -1174,9 +1250,11 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
   };
 
   const resetAndClose = () => {
+    localStorage.removeItem('suredev_registering');
     setStep(0);
     setAccountType(null);
     setGoogleConnected(false);
+    setCreatedUid(null);
     setError(null);
     setIsLoading(false);
     setDevData({
@@ -1212,31 +1290,11 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
   };
 
   const handleFinishSetup = () => {
-    try {
-      const stored = localStorage.getItem('suredev_registered_users');
-      const users = stored ? JSON.parse(stored) : [];
-      const email = accountType === 'developer' ? devData.email : empData.email;
-      const password = accountType === 'developer' ? devData.password : empData.password;
-      
-      // Only push if not already exists
-      if (!users.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
-        users.push({
-          email,
-          password,
-          accountType,
-          isGoogleUser: googleConnected,
-          name: accountType === 'developer' ? devData.name : empData.contactPerson
-        });
-        localStorage.setItem('suredev_registered_users', JSON.stringify(users));
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
+    const uid = createdUid || `user-${Date.now()}`;
     if (accountType === 'developer') {
-      onJoinSuccess({ ...devData, isGoogleUser: googleConnected }, 'developer');
+      onJoinSuccess({ ...devData, id: uid, isGoogleUser: googleConnected }, 'developer');
     } else {
-      onJoinSuccess({ ...empData, isGoogleUser: googleConnected }, 'employer');
+      onJoinSuccess({ ...empData, id: uid, isGoogleUser: googleConnected }, 'employer');
     }
     resetAndClose();
   };
@@ -1390,14 +1448,23 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
                       <label className="block text-xs font-medium text-brand-midnight uppercase tracking-wider mb-1.5">
                         Password (Min 6 characters)
                       </label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={devData.password}
-                        onChange={(e) => setDevData({ ...devData, password: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showDevPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={devData.password}
+                          onChange={(e) => setDevData({ ...devData, password: e.target.value })}
+                          className="w-full pl-4 pr-11 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowDevPassword(!showDevPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-midnight focus:outline-none cursor-pointer p-1"
+                        >
+                          {showDevPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1516,11 +1583,10 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight uppercase tracking-wider mb-1.5">
-                        GitHub Profile URL
+                        GitHub Profile URL (Optional)
                       </label>
                       <input
                         type="url"
-                        required
                         placeholder="https://github.com/username"
                         value={devData.github}
                         onChange={(e) => setDevData({ ...devData, github: e.target.value })}
@@ -1529,11 +1595,10 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight uppercase tracking-wider mb-1.5">
-                        Portfolio / Website
+                        Portfolio / Website (Optional)
                       </label>
                       <input
                         type="url"
-                        required
                         placeholder="https://mywebsite.dev"
                         value={devData.portfolio}
                         onChange={(e) => setDevData({ ...devData, portfolio: e.target.value })}
@@ -1783,14 +1848,23 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
                       <label className="block text-xs font-medium text-brand-midnight uppercase tracking-wider mb-1.5">
                         Create Account Password (Min 6 chars)
                       </label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={empData.password}
-                        onChange={(e) => setEmpData({ ...empData, password: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showEmpPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={empData.password}
+                          onChange={(e) => setEmpData({ ...empData, password: e.target.value })}
+                          className="w-full pl-4 pr-11 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEmpPassword(!showEmpPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-midnight focus:outline-none cursor-pointer p-1"
+                        >
+                          {showEmpPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1931,7 +2005,13 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (email: string, accountType: 'developer' | 'employer') => void;
+  onLoginSuccess: (
+    email: string, 
+    accountType: 'developer' | 'employer', 
+    isGoogleUser?: boolean,
+    displayName?: string,
+    avatar?: string
+  ) => void;
   onOpenJoin: () => void;
 }
 
@@ -1942,58 +2022,74 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.user) {
-        const { email: googleEmail } = event.data.user;
-        const lowerEmail = googleEmail.toLowerCase();
+        const { name, email: googleEmail, avatar: googleAvatar } = event.data.user;
         
-        // 1. Check preloaded default list of emails
-        const preloadedEmails = [
-          'chinedu.okeke@suredev.ng', 'amarachi.nwosu@suredev.ng', 'kalu.uduma@suredev.ng', 
-          'obinna.egwu@suredev.ng', 'chioma.nnaji@suredev.ng', 'emeka.anya@suredev.ng', 
-          'ikechi.onyekwere@suredev.ng', 'nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 
-          'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'
-        ];
+        setIsLoading(true);
+        setError(null);
         
-        // 2. Check localStorage registered users
-        let registeredUsers = [];
-        try {
-          const stored = localStorage.getItem('suredev_registered_users');
-          registeredUsers = stored ? JSON.parse(stored) : [];
-        } catch (e) {
-          // ignore
-        }
-        
-        const isPreloaded = preloadedEmails.includes(lowerEmail);
-        const isRegistered = registeredUsers.some((u: any) => u.email.toLowerCase() === lowerEmail);
-        
-        if (isPreloaded || isRegistered) {
-          let matchedRole = accountType;
-          if (isPreloaded) {
-            const isEmp = ['nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'].includes(lowerEmail);
-            matchedRole = isEmp ? 'employer' : 'developer';
-          } else {
-            const user = registeredUsers.find((u: any) => u.email.toLowerCase() === lowerEmail);
-            matchedRole = user?.accountType || accountType;
-          }
+        if (auth) {
+          try {
+            let firebaseUser;
+            try {
+              const cred = await signInWithEmailAndPassword(auth, googleEmail, "GoogleAuthPass123!");
+              firebaseUser = cred.user;
+            } catch (fbErr: any) {
+              if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+                throw new Error("This email is registered with a custom password. Please use email/password sign-in.");
+              }
+              try {
+                const cred = await createUserWithEmailAndPassword(auth, googleEmail, "GoogleAuthPass123!");
+                firebaseUser = cred.user;
+              } catch (createErr: any) {
+                if (createErr.code === 'auth/email-already-in-use') {
+                  throw new Error("This email is already associated with an account. Please sign in using your registered password.");
+                }
+                throw createErr;
+              }
+            }
 
-          if (matchedRole !== accountType) {
-            setError(`This account is registered as a ${matchedRole}. Please select the correct portal.`);
-            return;
-          }
+            const userDoc = await dbService.getUserDoc(firebaseUser.uid);
+            let matchedRole = accountType;
+            if (userDoc && userDoc.accountType) {
+              matchedRole = userDoc.accountType as 'developer' | 'employer';
+            } else {
+              if (accountType === 'developer') {
+                await dbService.createDefaultDeveloperProfile(firebaseUser.uid, googleEmail, name);
+              } else {
+                await dbService.createDefaultEmployerProfile(firebaseUser.uid, googleEmail, name);
+              }
+            }
 
+            if (matchedRole !== accountType) {
+              throw new Error(`This account is registered as a ${matchedRole}. Please select the correct portal.`);
+            }
+
+            setEmail(googleEmail);
+            setSuccess(true);
+            setTimeout(() => {
+              setSuccess(false);
+              onLoginSuccess(googleEmail, matchedRole, true, name, googleAvatar);
+              onClose();
+            }, 1200);
+          } catch (err: any) {
+            console.error("Google login background error:", err);
+            setError(err.message || "Failed to authenticate Google user via Firebase.");
+          } finally {
+            setIsLoading(false);
+          }
+        } else {
           setEmail(googleEmail);
           setSuccess(true);
-          setError(null);
           setTimeout(() => {
             setSuccess(false);
-            onLoginSuccess(googleEmail, matchedRole);
+            onLoginSuccess(googleEmail, accountType, true, name, googleAvatar);
             onClose();
           }, 1200);
-        } else {
-          setError(`No registered account found for "${googleEmail}". Please register first.`);
         }
       }
     };
@@ -2002,62 +2098,47 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
   }, [accountType, onLoginSuccess, onClose]);
 
   const handleGoogleSignIn = async () => {
-    if (isFirebaseConfigured && auth) {
-      setIsLoading(true);
-      setError(null);
+    setError(null);
+    setIsLoading(true);
+    if (auth) {
       try {
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
         const result = await signInWithPopup(auth, provider);
-        const googleEmail = result.user?.email;
-        if (googleEmail) {
-          const lowerEmail = googleEmail.toLowerCase();
-          
-          // Verify if user is registered in our database / directory (or preloaded)
-          const preloadedEmails = [
-            'chinedu.okeke@suredev.ng', 'amarachi.nwosu@suredev.ng', 'kalu.uduma@suredev.ng', 
-            'obinna.egwu@suredev.ng', 'chioma.nnaji@suredev.ng', 'emeka.anya@suredev.ng', 
-            'ikechi.onyekwere@suredev.ng', 'nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 
-            'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'
-          ];
-          
-          let registeredUsers = [];
-          try {
-            const stored = localStorage.getItem('suredev_registered_users');
-            registeredUsers = stored ? JSON.parse(stored) : [];
-          } catch (e) {
-            // ignore
-          }
+        const firebaseUser = result.user;
+        
+        const googleEmail = firebaseUser.email || '';
+        const name = firebaseUser.displayName || '';
+        const googleAvatar = firebaseUser.photoURL || '';
 
-          const isPreloaded = preloadedEmails.includes(lowerEmail);
-          const isRegistered = registeredUsers.some((u: any) => u.email.toLowerCase() === lowerEmail);
-
-          if (!isPreloaded && !isRegistered) {
-            throw new Error(`Google account "${googleEmail}" is not registered on SureDev yet. Please click 'Join directory' first.`);
-          }
-
-          let matchedRole = accountType;
-          if (isPreloaded) {
-            const isEmp = ['nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'].includes(lowerEmail);
-            matchedRole = isEmp ? 'employer' : 'developer';
+        const userDoc = await dbService.getUserDoc(firebaseUser.uid);
+        let matchedRole = accountType;
+        if (userDoc && userDoc.accountType) {
+          matchedRole = userDoc.accountType as 'developer' | 'employer';
+        } else {
+          // Auto register since it's real Google Auth
+          if (accountType === 'developer') {
+            await dbService.createDefaultDeveloperProfile(firebaseUser.uid, googleEmail, name);
           } else {
-            const user = registeredUsers.find((u: any) => u.email.toLowerCase() === lowerEmail);
-            matchedRole = user?.accountType || accountType;
+            await dbService.createDefaultEmployerProfile(firebaseUser.uid, googleEmail, name);
           }
-
-          if (matchedRole !== accountType) {
-            throw new Error(`This account is registered as a ${matchedRole}. Please select the correct portal.`);
-          }
-
-          setEmail(googleEmail);
-          setSuccess(true);
-          setTimeout(() => {
-            setSuccess(false);
-            onLoginSuccess(googleEmail, matchedRole, true);
-            onClose();
-          }, 1200);
         }
+
+        if (matchedRole !== accountType) {
+          throw new Error(`This account is registered as a ${matchedRole}. Please select the correct portal.`);
+        }
+
+        setEmail(googleEmail);
+        setSuccess(true);
+        setTimeout(() => {
+          setSuccess(false);
+          onLoginSuccess(googleEmail, matchedRole, true, name, googleAvatar);
+          onClose();
+        }, 1200);
+
       } catch (err: any) {
-        setError(err.message || "Google Authentication failed via Firebase.");
+        console.error("Google login error:", err);
+        setError(err.message || "Failed to authenticate Google user via Firebase.");
       } finally {
         setIsLoading(false);
       }
@@ -2079,49 +2160,71 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your registered email address first to reset password.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (auth) {
+        await sendPasswordResetEmail(auth, email);
+        alert(`A password reset link has been successfully dispatched to ${email}. Check your inbox!`);
+      } else {
+        setError("Firebase Auth is not initialized. Please verify configuration.");
+      }
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setError("No account found with this email. Please register to get started.");
+      } else {
+        setError(err.message || "Failed to trigger reset email.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
 
-    if (isFirebaseConfigured && auth) {
-      setIsLoading(true);
-      setError(null);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    
+    if (auth) {
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
         
-        // Also verify that this Firebase user has completed onboarding profile in our system
-        const lowerEmail = email.toLowerCase();
-        const preloadedEmails = [
-          'chinedu.okeke@suredev.ng', 'amarachi.nwosu@suredev.ng', 'kalu.uduma@suredev.ng', 
-          'obinna.egwu@suredev.ng', 'chioma.nnaji@suredev.ng', 'emeka.anya@suredev.ng', 
-          'ikechi.onyekwere@suredev.ng', 'nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 
-          'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'
-        ];
-        
-        let registeredUsers = [];
-        try {
-          const stored = localStorage.getItem('suredev_registered_users');
-          registeredUsers = stored ? JSON.parse(stored) : [];
-        } catch (err) {
-          // ignore
-        }
-
-        const isPreloaded = preloadedEmails.includes(lowerEmail);
-        const isRegistered = registeredUsers.some((u: any) => u.email.toLowerCase() === lowerEmail);
-
-        if (!isPreloaded && !isRegistered) {
-          throw new Error("Credentials correct, but profile registration was not completed. Please register first.");
-        }
-
+        const userDoc = await dbService.getUserDoc(firebaseUser.uid);
         let matchedRole = accountType;
-        if (isPreloaded) {
-          const isEmp = ['nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'].includes(lowerEmail);
-          matchedRole = isEmp ? 'employer' : 'developer';
+        
+        if (userDoc && userDoc.accountType) {
+          matchedRole = userDoc.accountType as 'developer' | 'employer';
         } else {
-          const user = registeredUsers.find((u: any) => u.email.toLowerCase() === lowerEmail);
-          matchedRole = user?.accountType || accountType;
+          const defaultName = firebaseUser.displayName || email.split('@')[0];
+          if (accountType === 'developer') {
+            await dbService.createDefaultDeveloperProfile(firebaseUser.uid, email, defaultName);
+          } else {
+            await dbService.createDefaultEmployerProfile(firebaseUser.uid, email, defaultName);
+          }
         }
 
         if (matchedRole !== accountType) {
@@ -2135,64 +2238,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
           onClose();
         }, 1200);
       } catch (err: any) {
-        setError(err.message || "Failed to authenticate via Firebase.");
+        console.error("Login error:", err);
+        if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+          setError("Incorrect password.");
+        } else if (err.code === 'auth/user-not-found') {
+          setError("No account found. Please register to get started.");
+        } else if (err.code === 'auth/invalid-email') {
+          setError("Please enter a valid email address.");
+        } else {
+          setError(err.message || "Failed to authenticate via Firebase.");
+        }
       } finally {
         setIsLoading(false);
       }
     } else {
-      // Mock flow with strictly checking for registered users
-      setIsLoading(true);
-      setError(null);
-      
-      setTimeout(() => {
-        setIsLoading(false);
-        const lowerEmail = email.toLowerCase();
-        
-        // 1. Check preloaded default list of emails
-        const preloadedEmails = [
-          'chinedu.okeke@suredev.ng', 'amarachi.nwosu@suredev.ng', 'kalu.uduma@suredev.ng', 
-          'obinna.egwu@suredev.ng', 'chioma.nnaji@suredev.ng', 'emeka.anya@suredev.ng', 
-          'ikechi.onyekwere@suredev.ng', 'nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 
-          'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'
-        ];
-        
-        // 2. Check localStorage registered users
-        let registeredUsers = [];
-        try {
-          const stored = localStorage.getItem('suredev_registered_users');
-          registeredUsers = stored ? JSON.parse(stored) : [];
-        } catch (e) {
-          // ignore
-        }
-        
-        const isPreloaded = preloadedEmails.includes(lowerEmail);
-        const isRegistered = registeredUsers.some((u: any) => u.email.toLowerCase() === lowerEmail && u.password === password);
-        
-        if (isPreloaded || isRegistered) {
-          let matchedRole = accountType;
-          if (isPreloaded) {
-            const isEmp = ['nnamdi@abiatrade.com', 'okezie@ariariashoetech.ng', 'folake@creativemu.agency', 'obioma@farmroute.com.ng', 'emeka@arocloud.sh'].includes(lowerEmail);
-            matchedRole = isEmp ? 'employer' : 'developer';
-          } else {
-            const user = registeredUsers.find((u: any) => u.email.toLowerCase() === lowerEmail);
-            matchedRole = user?.accountType || accountType;
-          }
-
-          if (matchedRole !== accountType) {
-            setError(`This account is registered as a ${matchedRole}. Please select the correct portal.`);
-            return;
-          }
-
-          setSuccess(true);
-          setTimeout(() => {
-            setSuccess(false);
-            onLoginSuccess(email, matchedRole);
-            onClose();
-          }, 1200);
-        } else {
-          setError("Invalid credentials. Please register or check your login details.");
-        }
-      }, 1000);
+      setError("Firebase Auth is not initialized. Please verify configuration.");
+      setIsLoading(false);
     }
   };
 
@@ -2285,14 +2346,23 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
                     <label className="block text-xs font-medium text-brand-midnight uppercase tracking-wider mb-1.5">
                       Passkey Password
                     </label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-4 pr-11 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-sm text-brand-midnight"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-midnight focus:outline-none cursor-pointer p-1"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2301,9 +2371,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
                     <input type="checkbox" className="rounded text-brand-green accent-brand-green" />
                     Remember me
                   </label>
-                  <a href="#reset" className="text-xs font-medium text-brand-green hover:underline">
+                  <button 
+                    type="button" 
+                    onClick={handleForgotPassword} 
+                    className="text-xs font-medium text-brand-green hover:underline cursor-pointer"
+                  >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
 
                 <button

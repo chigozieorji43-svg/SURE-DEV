@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Home } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Home, Sun, Moon } from 'lucide-react';
 import suredevBrandLogo from '../assets/images/suredev_brand_logo_1784065255454.jpg';
 import { UserSession } from '../types';
+import { UserAvatar } from './UserAvatar';
 
 interface NavbarProps {
   userSession: UserSession | null;
@@ -11,6 +12,8 @@ interface NavbarProps {
   onJoinClick: () => void;
   onLogoutClick: () => void;
   onSectionScroll: (sectionId: string) => void;
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,6 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onJoinClick,
   onLogoutClick,
   onSectionScroll,
+  darkMode,
+  onToggleDarkMode,
 }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -131,25 +136,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Guest Navigation */}
               <button
                 onClick={() => handleLinkClick('developers-section')}
-                className="text-sm font-medium text-gray-500 hover:text-brand-midnight transition-colors cursor-pointer"
+                className="text-sm font-medium text-gray-500 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white transition-colors cursor-pointer"
               >
                 Developers
               </button>
               <button
                 onClick={() => handleLinkClick('projects-section')}
-                className="text-sm font-medium text-gray-500 hover:text-brand-midnight transition-colors cursor-pointer"
+                className="text-sm font-medium text-gray-500 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white transition-colors cursor-pointer"
               >
                 Projects
               </button>
               <button
                 onClick={() => handleLinkClick('why-section')}
-                className="text-sm font-medium text-gray-500 hover:text-brand-midnight transition-colors cursor-pointer"
+                className="text-sm font-medium text-gray-500 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white transition-colors cursor-pointer"
               >
                 Why SureDev
               </button>
               <button
                 onClick={() => handleLinkClick('testimonials-section')}
-                className="text-sm font-medium text-gray-500 hover:text-brand-midnight transition-colors cursor-pointer"
+                className="text-sm font-medium text-gray-500 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white transition-colors cursor-pointer"
               >
                 Testimonials
               </button>
@@ -159,8 +164,28 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Auth Actions */}
         <div className="hidden md:flex items-center gap-4">
+          <button
+            onClick={onToggleDarkMode}
+            className="p-2.5 rounded-xl border border-brand-border dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-300 transition-all cursor-pointer focus:outline-none mr-1 flex items-center justify-center shadow-sm"
+            aria-label="Toggle theme"
+          >
+            {darkMode ? (
+              <Sun size={17} className="text-amber-500 animate-[spin_10s_linear_infinite]" />
+            ) : (
+              <Moon size={17} className="text-indigo-600 dark:text-indigo-400" />
+            )}
+          </button>
+
           {userSession ? (
             <div className="flex items-center gap-4">
+              <UserAvatar 
+                email={userSession.email}
+                src={userSession.profileImageUrl}
+                hasCustomProfileImage={userSession.hasCustomProfileImage}
+                sizeClassName="w-9 h-9"
+                className="cursor-pointer border border-brand-border/60 shadow-sm hover:ring-2 hover:ring-brand-green/30 transition-all"
+                onClick={() => onViewChange('dashboard')}
+              />
               <div className="flex flex-col text-right">
                 <span className="text-xs font-semibold text-brand-midnight truncate max-w-[120px]">
                   {userSession.email}
@@ -171,7 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <button
                 onClick={onLogoutClick}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-brand-border text-rose-600 hover:bg-rose-50 hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-brand-border dark:border-white/10 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:border-rose-200 rounded-xl transition-all cursor-pointer"
               >
                 <LogOut size={13} />
                 Sign Out
@@ -181,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <>
               <button
                 onClick={onLoginClick}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-brand-midnight transition-colors cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-brand-midnight transition-colors cursor-pointer"
               >
                 Login
               </button>
@@ -195,13 +220,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Mobile Menu Trigger */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-1 rounded-lg hover:bg-gray-100 text-brand-midnight transition-colors focus:outline-none"
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        {/* Mobile Controls */}
+        <div className="flex md:hidden items-center gap-2">
+          <button
+            onClick={onToggleDarkMode}
+            className="p-2 rounded-xl border border-brand-border dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-300 transition-all cursor-pointer focus:outline-none"
+            aria-label="Toggle theme"
+          >
+            {darkMode ? (
+              <Sun size={17} className="text-amber-500" />
+            ) : (
+              <Moon size={17} className="text-indigo-600 dark:text-indigo-400" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-brand-midnight dark:text-white transition-colors focus:outline-none"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Dropdown Menu */}
@@ -210,9 +249,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           {userSession ? (
             <>
               <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-brand-midnight">{userSession.email}</p>
-                  <p className="text-[10px] font-mono text-brand-green uppercase tracking-wider font-bold mt-0.5">{userSession.accountType} portal</p>
+                <div className="flex items-center gap-3">
+                  <UserAvatar 
+                    email={userSession.email}
+                    src={userSession.profileImageUrl}
+                    hasCustomProfileImage={userSession.hasCustomProfileImage}
+                    sizeClassName="w-10 h-10"
+                    className="border border-brand-border/60 shadow-sm"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-brand-midnight truncate max-w-[150px]">{userSession.email}</p>
+                    <p className="text-[10px] font-mono text-brand-green uppercase tracking-wider font-bold mt-0.5">{userSession.accountType} portal</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => {

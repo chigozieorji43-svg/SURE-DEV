@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  Building2, User, Globe, Mail, Phone, MapPin, Briefcase, Plus, Check, Upload, Sparkles, Code, Layout, Clock, Settings, Key
+  Building2, User, Globe, Mail, Phone, MapPin, Briefcase, Plus, Check, Upload, Sparkles, Code, Layout, Clock, Settings, Key,
+  RefreshCw, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { Employer } from '../types';
 import { GoogleInbox } from './GoogleInbox';
+import { uploadFileToStorage, uploadProfileImage } from '../lib/firebaseService';
+import { UserAvatar } from './UserAvatar';
 
 interface EmployerDashboardProps {
   employer: Employer;
@@ -43,6 +46,10 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
 
   // Logo Mock State
   const [companyLogo, setCompanyLogo] = useState(employer.companyLogo);
+  const [isUploading, setIsUploading] = useState(false);
+  const [logoProgress, setLogoProgress] = useState<number | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoSuccess, setLogoSuccess] = useState<boolean>(false);
 
   // Security
   const [password, setPassword] = useState('••••••••');
@@ -99,14 +106,68 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
     }
   };
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCompanyLogo(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        setLogoError('Only JPG, JPEG, PNG, and WebP images are allowed.');
+        return;
+      }
+
+      // Validate size
+      if (file.size > 5 * 1024 * 1024) {
+        setLogoError('File size exceeds the 5MB limit.');
+        return;
+      }
+
+      setLogoError(null);
+      setLogoSuccess(false);
+      setLogoProgress(0);
+      setIsUploading(true);
+
+      try {
+        const uploadUrl = await uploadProfileImage(
+          employer.id,
+          file,
+          'employer',
+          (progress) => {
+            setLogoProgress(progress);
+          }
+        );
+
+        setCompanyLogo(uploadUrl);
+        setLogoSuccess(true);
+        setLogoProgress(null);
+
+        const updatedEmp: Employer = {
+          ...employer,
+          companyLogo: uploadUrl,
+          profileImageUrl: uploadUrl,
+          hasCustomProfileImage: true,
+          companyName,
+          contactPerson,
+          description,
+          website,
+          phone,
+          email,
+          location,
+          industry,
+          desiredSkills,
+          hiringCategories,
+          hiringTypes,
+          targetQualifications,
+        };
+        onUpdateEmployer(updatedEmp);
+        setTimeout(() => setLogoSuccess(false), 4000);
+      } catch (err: any) {
+        console.error("Storage upload failed:", err);
+        setLogoError(err.message || 'Logo upload failed. Please try again.');
+        setLogoProgress(null);
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -121,15 +182,30 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
         <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="relative group">
-              <img 
-                src={companyLogo || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200&h=200'} 
-                alt={companyName} 
-                className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover border border-brand-border shadow-sm bg-brand-warm-white"
+              <UserAvatar 
+                name={companyName}
+                email={email}
+                src={companyLogo} 
+                hasCustomProfileImage={employer.hasCustomProfileImage}
+                sizeClassName="w-20 h-20 md:w-24 md:h-24"
+                roundedClassName="rounded-2xl"
+                className="border border-brand-border shadow-sm bg-brand-warm-white text-2xl md:text-3xl font-bold"
               />
-              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white">
-                <Upload size={14} />
-                <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+              <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white text-center p-1">
+                <Upload size={14} className="mb-0.5" />
+                <span className="text-[8px] font-semibold uppercase tracking-wider">Change Logo</span>
+                <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleLogoChange} className="hidden" />
               </label>
+
+              {/* Uploading progress overlay */}
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center text-white">
+                  <RefreshCw className="animate-spin text-brand-green mb-1" size={16} />
+                  <span className="text-[9px] font-mono font-bold">
+                    {logoProgress !== null ? `${logoProgress}%` : 'Compressing...'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="text-center md:text-left mb-2">
               <div className="flex items-center gap-2 justify-center md:justify-start">
@@ -141,6 +217,21 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                   Corporate Hub
                 </span>
               </div>
+
+              {/* Upload notifications */}
+              {logoError && (
+                <div className="mt-1 text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center justify-center md:justify-start gap-1 max-w-md animate-pulse mx-auto md:mx-0">
+                  <AlertCircle size={12} />
+                  <span>{logoError}</span>
+                </div>
+              )}
+              {logoSuccess && (
+                <div className="mt-1 text-xs text-brand-green bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center justify-center md:justify-start gap-1 max-w-md mx-auto md:mx-0">
+                  <CheckCircle size={12} />
+                  <span>Company logo updated successfully!</span>
+                </div>
+              )}
+
               <p className="text-brand-green font-medium mt-0.5">{industry} Industry</p>
               <p className="text-gray-400 text-xs mt-1 font-semibold uppercase tracking-wider flex items-center gap-1 justify-center md:justify-start">
                 <MapPin size={12} className="text-brand-green" />
