@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface UserAvatarProps {
   name?: string;
@@ -8,6 +8,7 @@ interface UserAvatarProps {
   className?: string;
   sizeClassName?: string;
   roundedClassName?: string;
+  onClick?: () => void;
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({
@@ -18,7 +19,16 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className = '',
   sizeClassName = 'w-10 h-10',
   roundedClassName = 'rounded-full',
+  onClick,
 }) => {
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state immediately whenever src prop updates
+  useEffect(() => {
+    console.log("Image URL (src) passed to Avatar component:", src);
+    setImgError(false);
+  }, [src]);
+
   const isDefaultUnsplash = (url?: string) => {
     if (!url) return true;
     return (
@@ -28,9 +38,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     );
   };
 
-  const useLetterAvatar = !hasCustomProfileImage && (!src || isDefaultUnsplash(src));
+  const isCustomImage = Boolean(src && (!isDefaultUnsplash(src) || hasCustomProfileImage));
+  const showImage = isCustomImage && !imgError;
 
-  if (useLetterAvatar) {
+  if (!showImage) {
     const displayName = name || email.split('@')[0] || '?';
     const firstLetter = displayName.trim().charAt(0).toUpperCase();
 
@@ -57,6 +68,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
     return (
       <div
+        onClick={onClick}
         className={`${roundedClassName} flex items-center justify-center font-bold tracking-tight select-none border border-black/5 dark:border-white/10 ${sizeClassName} ${colorClass} ${className}`}
         title={displayName}
       >
@@ -67,9 +79,12 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   return (
     <img
+      key={src}
       src={src}
       alt={name || 'Avatar'}
       referrerPolicy="no-referrer"
+      onError={() => setImgError(true)}
+      onClick={onClick}
       className={`${roundedClassName} object-cover border border-brand-border/60 ${sizeClassName} ${className}`}
     />
   );

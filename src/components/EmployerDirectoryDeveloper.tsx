@@ -26,10 +26,10 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
     // 1. Search text
     const query = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm ||
-      emp.companyName.toLowerCase().includes(query) ||
-      emp.description.toLowerCase().includes(query) ||
-      emp.industry.toLowerCase().includes(query) ||
-      emp.desiredSkills.some(s => s.toLowerCase().includes(query));
+      (emp.companyName && emp.companyName.toLowerCase().includes(query)) ||
+      (emp.description && emp.description.toLowerCase().includes(query)) ||
+      (emp.industry && emp.industry.toLowerCase().includes(query)) ||
+      (emp.desiredSkills && emp.desiredSkills.some(s => s.toLowerCase().includes(query)));
 
     // 2. Location
     const matchesLocation = selectedLocation === 'All Locations' || emp.location === selectedLocation;
@@ -136,8 +136,9 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
                 {/* Header Logo & Location details */}
                 <div className="flex items-start gap-4">
                   <img
-                    src={emp.companyLogo}
+                    src={emp.profileImageUrl || emp.companyLogo}
                     alt={emp.companyName}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-2xl object-cover bg-brand-warm-white border border-brand-border shadow-sm"
                   />
                   <div>

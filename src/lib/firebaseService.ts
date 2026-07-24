@@ -29,10 +29,12 @@ import {
   createUserWithEmailAndPassword,
   firebaseSignOut,
   sendPasswordResetEmail,
-  sendEmailVerification
+  sendEmailVerification,
+  updateProfile
 } from './firebase';
 import { Developer, Employer, CollabRequest, Project } from '../types';
 import { DEVELOPERS, EMPLOYERS } from '../data';
+import { uploadToCloudinary } from './cloudinary';
 
 // ==========================================
 // 1. IMAGE COMPRESSION UTILITY
@@ -87,23 +89,24 @@ export async function compressImage(file: File, maxWidth = 800, maxHeight = 800,
   });
 }
 
+// Helper function to convert blob to base64 Data URL
+async function blobToBase64(blob: Blob | File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 // ==========================================
 // 2. STORAGE MANAGEMENT
 // ==========================================
 export async function uploadFileToStorage(
   file: File,
   path: string,
-  oldFileUrl?: string
+  _oldFileUrl?: string
 ): Promise<string> {
-  if (!storage) {
-    // Fallback to base64 only if Firebase is completely absent (for type safety during builds)
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
-  }
-
   let uploadData: Blob | File = file;
   if (file.type.startsWith('image/')) {
     try {
@@ -111,30 +114,150 @@ export async function uploadFileToStorage(
     } catch (e) {
       console.warn('Image compression failed, using original file', e);
     }
-  }
-
-  // Delete old file if it resides in Firebase Storage to prevent leaks
-  if (oldFileUrl && oldFileUrl.includes('firebasestorage.googleapis.com')) {
     try {
-      const decodedUrl = decodeURIComponent(oldFileUrl);
-      const startIdx = decodedUrl.indexOf('/o/') + 3;
-      const endIdx = decodedUrl.indexOf('?');
-      if (startIdx > 2 && endIdx > startIdx) {
-        const oldStoragePath = decodedUrl.substring(startIdx, endIdx);
-        const oldRef = ref(storage, oldStoragePath);
-        await deleteObject(oldRef);
-        console.log('Auto-deleted superseded file from storage:', oldStoragePath);
+      const res = await uploadToCloudinary({
+        file: uploadData,
+        folder: `suredev_uploads/${path}`
+      });
+      if (res.secure_url) {
+        return res.secure_url;
       }
-    } catch (error) {
-      console.warn('Failed to auto-cleanup old file in storage:', error);
+    } catch (err) {
+      console.warn('Cloudinary image upload failed:', err);
+      throw err;
     }
   }
 
-  const uniqueName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-  const fileRef = ref(storage, `${path}/${uniqueName}`);
-  await uploadBytes(fileRef, uploadData);
-  const downloadUrl = await getDownloadURL(fileRef);
-  return downloadUrl;
+  if (!storage) {
+    return blobToBase64(uploadData);
+  }
+
+  try {
+    const uniqueName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    const fileRef = ref(storage, `${path}/${uniqueName}`);
+    await uploadBytes(fileRef, uploadData);
+    const downloadUrl = await getDownloadURL(fileRef);
+    return downloadUrl;
+  } catch (err) {
+    console.warn('Storage upload failed:', err);
+    throw err;
+  }
+}
+
+async function syncProfileImageData(
+  uid: string,
+  downloadUrl: string,
+  accountType: 'developer' | 'employer'
+) {
+  // Update Firebase Auth currentUser photoURL (source of truth for Auth)
+  if (auth && auth.currentUser && auth.currentUser.uid === uid) {
+    try {
+      await updateProfile(auth.currentUser, { photoURL: downloadUrl });
+      console.log("Updated Firebase Auth currentUser photoURL successfully.");
+    } catch (authErr) {
+      console.warn("Failed to update Firebase Auth profile photoURL:", authErr);
+    }
+  }
+
+  // Update Firestore database collections
+  if (db) {
+    try {
+      const userDocRef = doc(db, 'users', uid);
+      await setDoc(userDocRef, {
+        ownerId: uid,
+        photoURL: downloadUrl,
+        profileImageUrl: downloadUrl,
+        hasCustomProfileImage: true,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      if (accountType === 'developer') {
+        const devDocRef = doc(db, 'developers', uid);
+        await setDoc(devDocRef, {
+          ownerId: uid,
+          avatar: downloadUrl,
+          profileImageUrl: downloadUrl,
+          photoURL: downloadUrl,
+          hasCustomProfileImage: true,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        const empDocRef = doc(db, 'employers', uid);
+        await setDoc(empDocRef, {
+          ownerId: uid,
+          companyLogo: downloadUrl,
+          profileImageUrl: downloadUrl,
+          photoURL: downloadUrl,
+          hasCustomProfileImage: true,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      try {
+        const targetCol = accountType === 'developer' ? 'developers' : 'employers';
+        const docSnap = await getDoc(doc(db, targetCol, uid));
+        if (docSnap.exists()) {
+          console.log(`Exact Firestore document (${targetCol}/${uid}) after update:`, docSnap.data());
+        }
+      } catch (logErr) {
+        console.warn("Could not read back Firestore document for logging:", logErr);
+      }
+    } catch (dbErr) {
+      console.warn("Firestore sync failed for profile image:", dbErr);
+    }
+  }
+
+  // Update local memory state & caches for immediate non-refresh UI update
+  if (accountType === 'developer') {
+    const profile = safeLoad(`developer_profile_${uid}`, null);
+    if (profile) {
+      profile.avatar = downloadUrl;
+      profile.profileImageUrl = downloadUrl;
+      profile.photoURL = downloadUrl;
+      profile.hasCustomProfileImage = true;
+      safeSave(`developer_profile_${uid}`, profile);
+    }
+    const devs = safeLoad('suredev_developers', DEVELOPERS);
+    const index = devs.findIndex((d: any) => d.id === uid);
+    if (index !== -1) {
+      devs[index] = { 
+        ...devs[index], 
+        avatar: downloadUrl, 
+        profileImageUrl: downloadUrl, 
+        photoURL: downloadUrl, 
+        hasCustomProfileImage: true 
+      };
+      safeSave('suredev_developers', devs);
+    }
+  } else {
+    const profile = safeLoad(`employer_profile_${uid}`, null);
+    if (profile) {
+      profile.companyLogo = downloadUrl;
+      profile.profileImageUrl = downloadUrl;
+      profile.photoURL = downloadUrl;
+      profile.hasCustomProfileImage = true;
+      safeSave(`employer_profile_${uid}`, profile);
+    }
+    const emps = safeLoad('suredev_employers', EMPLOYERS);
+    const index = emps.findIndex((e: any) => e.id === uid);
+    if (index !== -1) {
+      emps[index] = { 
+        ...emps[index], 
+        companyLogo: downloadUrl, 
+        profileImageUrl: downloadUrl, 
+        photoURL: downloadUrl, 
+        hasCustomProfileImage: true 
+      };
+      safeSave('suredev_employers', emps);
+    }
+  }
+
+  const userDoc = safeLoad(`user_doc_${uid}`, null) || {};
+  userDoc.photoURL = downloadUrl;
+  userDoc.profileImageUrl = downloadUrl;
+  userDoc.hasCustomProfileImage = true;
+  userDoc.updatedAt = new Date().toISOString();
+  safeSave(`user_doc_${uid}`, userDoc);
 }
 
 export async function uploadProfileImage(
@@ -143,63 +266,18 @@ export async function uploadProfileImage(
   accountType: 'developer' | 'employer',
   onProgress?: (progress: number) => void
 ): Promise<string> {
-  // Validate file type
+  // 1. Validate file type
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   if (!allowedTypes.includes(file.type.toLowerCase())) {
     throw new Error('Only JPG, JPEG, PNG, and WebP images are allowed.');
   }
 
-  // Validate size
+  // 2. Validate maximum size (5MB)
   if (file.size > 5 * 1024 * 1024) {
     throw new Error('File size exceeds the 5MB limit.');
   }
 
-  if (!storage) {
-    // Local storage fallback when Firebase is not configured
-    return new Promise((resolve) => {
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 25;
-        if (onProgress) onProgress(progress);
-        if (progress >= 100) {
-          clearInterval(interval);
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-            // Save in local storage
-            if (accountType === 'developer') {
-              const profile = safeLoad(`developer_profile_${uid}`, null);
-              if (profile) {
-                profile.avatar = base64;
-                profile.profileImageUrl = base64;
-                profile.hasCustomProfileImage = true;
-                safeSave(`developer_profile_${uid}`, profile);
-              }
-            } else {
-              const profile = safeLoad(`employer_profile_${uid}`, null);
-              if (profile) {
-                profile.companyLogo = base64;
-                profile.profileImageUrl = base64;
-                profile.hasCustomProfileImage = true;
-                safeSave(`employer_profile_${uid}`, profile);
-              }
-            }
-            
-            const userDoc = safeLoad(`user_doc_${uid}`, null) || {};
-            userDoc.profileImageUrl = base64;
-            userDoc.hasCustomProfileImage = true;
-            userDoc.updatedAt = new Date().toISOString();
-            safeSave(`user_doc_${uid}`, userDoc);
-
-            resolve(base64);
-          };
-          reader.readAsDataURL(file);
-        }
-      }, 100);
-    });
-  }
-
-  // Compress the image before uploading
+  // 3. Compress image before upload
   let uploadData: Blob | File = file;
   try {
     uploadData = await compressImage(file, 800, 800, 0.85);
@@ -207,87 +285,30 @@ export async function uploadProfileImage(
     console.warn('Image compression failed, using original file:', e);
   }
 
-  const fileRef = ref(storage, `profilePictures/${uid}/profile.jpg`);
-  
-  return new Promise((resolve, reject) => {
-    const uploadTask = uploadBytesResumable(fileRef, uploadData);
+  // 4. Upload to Cloudinary using unsigned preset 'SURE DEV' on cloud 'ojk0qrbo'
+  try {
+    const cloudinaryRes = await uploadToCloudinary({
+      file: uploadData,
+      onProgress,
+      folder: `suredev_profiles/${accountType}s`,
+      tags: ['suredev', accountType, uid]
+    });
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-        if (onProgress) {
-          onProgress(progress);
-        }
-      },
-      (error) => {
-        console.error("Firebase Storage upload failed:", error);
-        reject(error);
-      },
-      async () => {
-        try {
-          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // Save in Firestore and local storage fallback
-          if (db) {
-            const userDocRef = doc(db, 'users', uid);
-            await setDoc(userDocRef, {
-              profileImageUrl: downloadUrl,
-              hasCustomProfileImage: true,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
+    const secureUrl = cloudinaryRes.secure_url;
+    if (!secureUrl) {
+      throw new Error('Cloudinary upload did not return a valid secure URL.');
+    }
 
-            if (accountType === 'developer') {
-              const devDocRef = doc(db, 'developers', uid);
-              await setDoc(devDocRef, {
-                avatar: downloadUrl,
-                profileImageUrl: downloadUrl,
-                hasCustomProfileImage: true,
-                updatedAt: serverTimestamp()
-              }, { merge: true });
-            } else {
-              const empDocRef = doc(db, 'employers', uid);
-              await setDoc(empDocRef, {
-                companyLogo: downloadUrl,
-                profileImageUrl: downloadUrl,
-                hasCustomProfileImage: true,
-                updatedAt: serverTimestamp()
-              }, { merge: true });
-            }
-          }
+    console.log("Cloudinary secure_url:", secureUrl);
 
-          // Update local state storage
-          if (accountType === 'developer') {
-            const profile = safeLoad(`developer_profile_${uid}`, null);
-            if (profile) {
-              profile.avatar = downloadUrl;
-              profile.profileImageUrl = downloadUrl;
-              profile.hasCustomProfileImage = true;
-              safeSave(`developer_profile_${uid}`, profile);
-            }
-          } else {
-            const profile = safeLoad(`employer_profile_${uid}`, null);
-            if (profile) {
-              profile.companyLogo = downloadUrl;
-              profile.profileImageUrl = downloadUrl;
-              profile.hasCustomProfileImage = true;
-              safeSave(`employer_profile_${uid}`, profile);
-            }
-          }
+    // 5. Save returned secure_url to Firestore, Auth profile photoURL, and local stores
+    await syncProfileImageData(uid, secureUrl, accountType);
 
-          const userDoc = safeLoad(`user_doc_${uid}`, null) || {};
-          userDoc.profileImageUrl = downloadUrl;
-          userDoc.hasCustomProfileImage = true;
-          userDoc.updatedAt = new Date().toISOString();
-          safeSave(`user_doc_${uid}`, userDoc);
-
-          resolve(downloadUrl);
-        } catch (err) {
-          reject(err);
-        }
-      }
-    );
-  });
+    return secureUrl;
+  } catch (error: any) {
+    console.error('Cloudinary Profile Image Upload Error:', error);
+    throw new Error(error?.message || 'Failed to upload profile image to Cloudinary.');
+  }
 }
 
 // Helper to create metadata structure required for every document
@@ -327,21 +348,32 @@ const safeSave = (key: string, val: any) => {
 export const dbService = {
   // --- USER DOCS FOR ACCOUNT TYPES ---
   async getUserDoc(uid: string) {
-    const localDoc = safeLoad(`user_doc_${uid}`, null);
-    if (!db) return localDoc;
-    try {
-      const docRef = doc(db, 'users', uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        safeSave(`user_doc_${uid}`, data);
-        return data;
+    const localDoc = safeLoad(`user_doc_${uid}`, null) || {};
+    let userDocData = localDoc;
+
+    if (db) {
+      try {
+        const docRef = doc(db, 'users', uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          userDocData = { ...localDoc, ...snap.data() };
+          safeSave(`user_doc_${uid}`, userDocData);
+        }
+      } catch (error) {
+        console.warn("Firestore getUserDoc failed, using localStorage fallback:", error);
       }
-      return localDoc;
-    } catch (error) {
-      console.warn("Firestore getUserDoc failed, using localStorage fallback:", error);
-      return localDoc;
     }
+
+    // Fallback to Auth photoURL if photoURL is missing from userDoc
+    if (auth && auth.currentUser && auth.currentUser.uid === uid && auth.currentUser.photoURL) {
+      if (!userDocData.photoURL && !userDocData.profileImageUrl) {
+        userDocData.photoURL = auth.currentUser.photoURL;
+        userDocData.profileImageUrl = auth.currentUser.photoURL;
+        userDocData.hasCustomProfileImage = true;
+      }
+    }
+
+    return userDocData;
   },
 
   async getDeveloperProfile(uid: string) {
@@ -350,28 +382,44 @@ export const dbService = {
       const devs = safeLoad('suredev_developers', DEVELOPERS);
       localProfile = devs.find((d: any) => d.id === uid) || null;
     }
-    if (!db) return localProfile;
-    try {
-      const docRef = doc(db, 'developers', uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data() as Developer;
-        safeSave(`developer_profile_${uid}`, data);
-        const devs = safeLoad('suredev_developers', DEVELOPERS);
-        const index = devs.findIndex((d: any) => d.id === uid);
-        if (index !== -1) {
-          devs[index] = { ...devs[index], ...data };
-        } else {
-          devs.unshift(data);
+
+    let profileData = localProfile;
+
+    if (db) {
+      try {
+        const docRef = doc(db, 'developers', uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data() as Developer;
+          profileData = { ...localProfile, ...data };
         }
-        safeSave('suredev_developers', devs);
-        return data;
+      } catch (error) {
+        console.warn("Firestore getDeveloperProfile failed, using localStorage fallback:", error);
       }
-      return localProfile;
-    } catch (error) {
-      console.warn("Firestore getDeveloperProfile failed, using localStorage fallback:", error);
-      return localProfile;
     }
+
+    // Source of Truth Fallback Check: Firestore Profile -> Firestore UserDoc -> Auth photoURL
+    const userDoc = await this.getUserDoc(uid);
+    const bestPhotoUrl = profileData?.profileImageUrl || profileData?.avatar || userDoc?.photoURL || userDoc?.profileImageUrl || (auth?.currentUser?.uid === uid ? auth.currentUser.photoURL : null);
+
+    if (profileData) {
+      if (bestPhotoUrl && (!profileData.avatar || profileData.avatar.includes('unsplash.com') || profileData.avatar !== bestPhotoUrl)) {
+        profileData.avatar = bestPhotoUrl;
+        profileData.profileImageUrl = bestPhotoUrl;
+        profileData.hasCustomProfileImage = true;
+      }
+      safeSave(`developer_profile_${uid}`, profileData);
+      const devs = safeLoad('suredev_developers', DEVELOPERS);
+      const index = devs.findIndex((d: any) => d.id === uid);
+      if (index !== -1) {
+        devs[index] = { ...devs[index], ...profileData };
+      } else {
+        devs.unshift(profileData);
+      }
+      safeSave('suredev_developers', devs);
+    }
+
+    return profileData;
   },
 
   async getEmployerProfile(uid: string) {
@@ -380,36 +428,57 @@ export const dbService = {
       const emps = safeLoad('suredev_employers', EMPLOYERS);
       localProfile = emps.find((e: any) => e.id === uid) || null;
     }
-    if (!db) return localProfile;
-    try {
-      const docRef = doc(db, 'employers', uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data() as Employer;
-        safeSave(`employer_profile_${uid}`, data);
-        const emps = safeLoad('suredev_employers', EMPLOYERS);
-        const index = emps.findIndex((e: any) => e.id === uid);
-        if (index !== -1) {
-          emps[index] = { ...emps[index], ...data };
-        } else {
-          emps.unshift(data);
+
+    let profileData = localProfile;
+
+    if (db) {
+      try {
+        const docRef = doc(db, 'employers', uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data() as Employer;
+          profileData = { ...localProfile, ...data };
         }
-        safeSave('suredev_employers', emps);
-        return data;
+      } catch (error) {
+        console.warn("Firestore getEmployerProfile failed, using localStorage fallback:", error);
       }
-      return localProfile;
-    } catch (error) {
-      console.warn("Firestore getEmployerProfile failed, using localStorage fallback:", error);
-      return localProfile;
     }
+
+    // Source of Truth Fallback Check: Firestore Profile -> Firestore UserDoc -> Auth photoURL
+    const userDoc = await this.getUserDoc(uid);
+    const bestPhotoUrl = profileData?.profileImageUrl || profileData?.companyLogo || userDoc?.photoURL || userDoc?.profileImageUrl || (auth?.currentUser?.uid === uid ? auth.currentUser.photoURL : null);
+
+    if (profileData) {
+      if (bestPhotoUrl && (!profileData.companyLogo || profileData.companyLogo.includes('unsplash.com') || profileData.companyLogo !== bestPhotoUrl)) {
+        profileData.companyLogo = bestPhotoUrl;
+        profileData.profileImageUrl = bestPhotoUrl;
+        profileData.hasCustomProfileImage = true;
+      }
+      safeSave(`employer_profile_${uid}`, profileData);
+      const emps = safeLoad('suredev_employers', EMPLOYERS);
+      const index = emps.findIndex((e: any) => e.id === uid);
+      if (index !== -1) {
+        emps[index] = { ...emps[index], ...profileData };
+      } else {
+        emps.unshift(profileData);
+      }
+      safeSave('suredev_employers', emps);
+    }
+
+    return profileData;
   },
 
   async createDefaultDeveloperProfile(uid: string, email: string, name: string) {
+    const userDoc = await this.getUserDoc(uid);
+    const existingPhoto = userDoc?.photoURL || userDoc?.profileImageUrl || (auth?.currentUser?.uid === uid ? auth.currentUser.photoURL : null);
+
     const newDev: Developer = {
       id: uid,
-      name: name || email.split('@')[0],
+      name: name || (auth?.currentUser?.displayName) || email.split('@')[0],
       title: 'Software Developer',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200',
+      avatar: existingPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200',
+      profileImageUrl: existingPhoto || undefined,
+      hasCustomProfileImage: !!existingPhoto,
       location: 'Aba',
       experience: 3,
       skills: ['React', 'TypeScript', 'Tailwind CSS'],
@@ -435,13 +504,16 @@ export const dbService = {
       devs.unshift(newDev);
       safeSave('suredev_developers', devs);
     }
-    const userDoc = {
+    const updatedUserDoc = {
       accountType: 'developer',
       email,
       name: newDev.name,
+      photoURL: existingPhoto || null,
+      profileImageUrl: existingPhoto || null,
+      hasCustomProfileImage: !!existingPhoto,
       updatedAt: new Date().toISOString()
     };
-    safeSave(`user_doc_${uid}`, userDoc);
+    safeSave(`user_doc_${uid}`, updatedUserDoc);
 
     if (db) {
       try {
@@ -454,11 +526,16 @@ export const dbService = {
   },
 
   async createDefaultEmployerProfile(uid: string, email: string, name: string) {
+    const userDoc = await this.getUserDoc(uid);
+    const existingPhoto = userDoc?.photoURL || userDoc?.profileImageUrl || (auth?.currentUser?.uid === uid ? auth.currentUser.photoURL : null);
+
     const newEmp: Employer = {
       id: uid,
       companyName: name ? `${name}'s Company` : `${email.split('@')[0]}'s Venture`,
-      companyLogo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=200&h=200',
-      contactPerson: name || email.split('@')[0],
+      companyLogo: existingPhoto || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=200&h=200',
+      profileImageUrl: existingPhoto || undefined,
+      hasCustomProfileImage: !!existingPhoto,
+      contactPerson: name || (auth?.currentUser?.displayName) || email.split('@')[0],
       description: `Leading local brand based in Aba, Abia State.`,
       website: 'https://cooperative.ng',
       phone: '',
@@ -477,13 +554,16 @@ export const dbService = {
       emps.unshift(newEmp);
       safeSave('suredev_employers', emps);
     }
-    const userDoc = {
+    const updatedUserDoc = {
       accountType: 'employer',
       email,
       name: newEmp.contactPerson,
+      photoURL: existingPhoto || null,
+      profileImageUrl: existingPhoto || null,
+      hasCustomProfileImage: !!existingPhoto,
       updatedAt: new Date().toISOString()
     };
-    safeSave(`user_doc_${uid}`, userDoc);
+    safeSave(`user_doc_${uid}`, updatedUserDoc);
 
     if (db) {
       try {
@@ -519,8 +599,13 @@ export const dbService = {
         snapshot.forEach((doc) => {
           developersList.push({ id: doc.id, ...doc.data() } as Developer);
         });
-        safeSave('suredev_developers', developersList);
-        callback(developersList);
+        if (developersList.length === 0) {
+          const stored = safeLoad('suredev_developers', DEVELOPERS);
+          callback(stored);
+        } else {
+          safeSave('suredev_developers', developersList);
+          callback(developersList);
+        }
       }, (error) => {
         console.warn("Firestore developers live sync failed or offline:", error);
         if (!isSnapshotFired) {
@@ -543,7 +628,15 @@ export const dbService = {
 
   async saveDeveloperProfile(devId: string, data: Partial<Developer>, ownerId: string) {
     const existing = safeLoad(`developer_profile_${devId}`, null) || {};
-    const updatedDev = { ...existing, ...data, id: devId };
+    const photo = data.profileImageUrl || data.avatar || existing.profileImageUrl || existing.avatar;
+    const hasCustom = photo && !photo.includes('unsplash.com');
+
+    const updatedDev = { 
+      ...existing, 
+      ...data, 
+      id: devId,
+      ...(photo ? { avatar: photo, profileImageUrl: photo, photoURL: photo, hasCustomProfileImage: hasCustom } : {})
+    };
     safeSave(`developer_profile_${devId}`, updatedDev);
 
     const devs = safeLoad('suredev_developers', DEVELOPERS);
@@ -561,9 +654,18 @@ export const dbService = {
       accountType: 'developer',
       email: data.email || userDoc.email,
       name: data.name || userDoc.name,
+      ...(photo ? { photoURL: photo, profileImageUrl: photo, hasCustomProfileImage: hasCustom } : {}),
       updatedAt: new Date().toISOString()
     };
     safeSave(`user_doc_${ownerId}`, updatedUser);
+
+    if (auth && auth.currentUser && auth.currentUser.uid === ownerId && photo && photo !== auth.currentUser.photoURL) {
+      try {
+        await updateProfile(auth.currentUser, { photoURL: photo });
+      } catch (err) {
+        console.warn("Failed to sync photoURL to auth in saveDeveloperProfile:", err);
+      }
+    }
 
     if (db) {
       try {
@@ -573,8 +675,9 @@ export const dbService = {
         const userDocRef = doc(db, 'users', ownerId);
         await setDoc(userDocRef, {
           accountType: 'developer',
-          email: data.email,
-          name: data.name,
+          email: data.email || userDoc.email,
+          name: data.name || userDoc.name,
+          ...(photo ? { photoURL: photo, profileImageUrl: photo, hasCustomProfileImage: hasCustom } : {}),
           updatedAt: serverTimestamp()
         }, { merge: true });
       } catch (err) {
@@ -607,8 +710,13 @@ export const dbService = {
         snapshot.forEach((doc) => {
           employersList.push({ id: doc.id, ...doc.data() } as Employer);
         });
-        safeSave('suredev_employers', employersList);
-        callback(employersList);
+        if (employersList.length === 0) {
+          const stored = safeLoad('suredev_employers', EMPLOYERS);
+          callback(stored);
+        } else {
+          safeSave('suredev_employers', employersList);
+          callback(employersList);
+        }
       }, (error) => {
         console.warn("Firestore employers live sync failed or offline:", error);
         if (!isSnapshotFired) {
@@ -631,7 +739,15 @@ export const dbService = {
 
   async saveEmployerProfile(empId: string, data: Partial<Employer>, ownerId: string) {
     const existing = safeLoad(`employer_profile_${empId}`, null) || {};
-    const updatedEmp = { ...existing, ...data, id: empId };
+    const photo = data.profileImageUrl || data.companyLogo || existing.profileImageUrl || existing.companyLogo;
+    const hasCustom = photo && !photo.includes('unsplash.com');
+
+    const updatedEmp = { 
+      ...existing, 
+      ...data, 
+      id: empId,
+      ...(photo ? { companyLogo: photo, profileImageUrl: photo, photoURL: photo, hasCustomProfileImage: hasCustom } : {})
+    };
     safeSave(`employer_profile_${empId}`, updatedEmp);
 
     const emps = safeLoad('suredev_employers', EMPLOYERS);
@@ -649,9 +765,18 @@ export const dbService = {
       accountType: 'employer',
       email: data.email || userDoc.email,
       name: data.contactPerson || userDoc.name,
+      ...(photo ? { photoURL: photo, profileImageUrl: photo, hasCustomProfileImage: hasCustom } : {}),
       updatedAt: new Date().toISOString()
     };
     safeSave(`user_doc_${ownerId}`, updatedUser);
+
+    if (auth && auth.currentUser && auth.currentUser.uid === ownerId && photo && photo !== auth.currentUser.photoURL) {
+      try {
+        await updateProfile(auth.currentUser, { photoURL: photo });
+      } catch (err) {
+        console.warn("Failed to sync photoURL to auth in saveEmployerProfile:", err);
+      }
+    }
 
     if (db) {
       try {
@@ -661,8 +786,9 @@ export const dbService = {
         const userDocRef = doc(db, 'users', ownerId);
         await setDoc(userDocRef, {
           accountType: 'employer',
-          email: data.email,
-          name: data.contactPerson,
+          email: data.email || userDoc.email,
+          name: data.contactPerson || userDoc.name,
+          ...(photo ? { photoURL: photo, profileImageUrl: photo, hasCustomProfileImage: hasCustom } : {}),
           updatedAt: serverTimestamp()
         }, { merge: true });
       } catch (err) {
@@ -672,6 +798,109 @@ export const dbService = {
   },
 
   // --- COLLABORATION REQUESTS ---
+  async getUserInfoForEmail(userId: string): Promise<{ email: string; name: string }> {
+    const devs = safeLoad('suredev_developers', DEVELOPERS);
+    const dev = devs.find((d: any) => d.id === userId);
+    if (dev && dev.email) return { email: dev.email, name: dev.name };
+
+    const emps = safeLoad('suredev_employers', EMPLOYERS);
+    const emp = emps.find((e: any) => e.id === userId);
+    if (emp && emp.email) return { email: emp.email, name: emp.contactPerson || emp.companyName };
+
+    const localUserDoc = safeLoad(`user_doc_${userId}`, null);
+    if (localUserDoc && localUserDoc.email) {
+      return { email: localUserDoc.email, name: localUserDoc.name || localUserDoc.email.split('@')[0] };
+    }
+
+    if (db) {
+      try {
+        const devDoc = await getDoc(doc(db, 'developers', userId));
+        if (devDoc.exists() && devDoc.data().email) {
+          return { email: devDoc.data().email, name: devDoc.data().name };
+        }
+        const empDoc = await getDoc(doc(db, 'employers', userId));
+        if (empDoc.exists() && empDoc.data().email) {
+          return { email: empDoc.data().email, name: empDoc.data().contactPerson || empDoc.data().companyName };
+        }
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists() && userDoc.data().email) {
+          return { email: userDoc.data().email, name: userDoc.data().name || userDoc.data().email.split('@')[0] };
+        }
+      } catch (err) {
+        console.warn("Error fetching user info for email dispatch:", err);
+      }
+    }
+
+    return { email: '', name: 'SureDev Specialist' };
+  },
+
+  async sendEmailNotification(params: {
+    toEmail: string;
+    recipientName: string;
+    subject: string;
+    body: string;
+    type: 'collab_request' | 'collab_accepted' | 'collab_declined';
+    senderName?: string;
+    senderEmail?: string;
+  }) {
+    const { toEmail, recipientName, subject, body, type, senderName, senderEmail } = params;
+    if (!toEmail) {
+      console.warn("sendEmailNotification: Recipient email address missing.");
+      return;
+    }
+
+    const payload = {
+      to: toEmail,
+      recipientName,
+      subject,
+      body,
+      type,
+      senderName: senderName || 'SureDev System',
+      senderEmail: senderEmail || 'no-reply@suredev.ng',
+      status: 'triggered',
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Write email trigger document to Firestore 'email_notifications' collection
+    if (db) {
+      try {
+        await addDoc(collection(db, 'email_notifications'), withMetadata({
+          ...payload,
+          status: 'queued',
+          timestamp: serverTimestamp()
+        }, 'system'));
+        console.log(`[FIREBASE EMAIL TRIGGER] Trigger document created in 'email_notifications' for ${toEmail}`);
+      } catch (err) {
+        console.warn("Firestore email_notifications document creation failed:", err);
+      }
+    }
+
+    // 2. Queue into user's local Google Inbox store so it's instantly visible in the app
+    const emailInboxList = safeLoad(`email_inbox_${toEmail}`, []);
+    emailInboxList.unshift({
+      id: `email-${Date.now()}`,
+      senderName: senderName || 'SureDev System',
+      senderEmail: senderEmail || 'notifications@suredev.ng',
+      subject,
+      date: 'Just Now',
+      body,
+      isRead: false,
+      isStarred: true
+    });
+    safeSave(`email_inbox_${toEmail}`, emailInboxList);
+
+    // 3. Post to backend Express server API endpoint /api/notifications/email
+    try {
+      await fetch('/api/notifications/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn("Failed to reach /api/notifications/email server endpoint:", err);
+    }
+  },
+
   subscribeCollaborationRequests(callback: (requests: CollabRequest[]) => void) {
     const syncLocal = () => {
       const stored = safeLoad('suredev_collab_requests', []);
@@ -743,6 +972,50 @@ export const dbService = {
         console.warn("Firestore sendCollabRequest failed:", err);
       }
     }
+
+    // Trigger Email Notification to Receiver
+    try {
+      const senderInfo = await this.getUserInfoForEmail(senderId);
+      const receiverInfo = await this.getUserInfoForEmail(receiverId);
+
+      if (receiverInfo.email) {
+        const emailBody = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; border-bottom: 2px solid #047857; padding-bottom: 15px; margin-bottom: 20px;">
+              <h2 style="color: #047857; margin: 0;">SureDev Ecosystem</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0;">Collaboration Hub Notification</p>
+            </div>
+            <h3 style="color: #0f172a;">Hello ${receiverInfo.name || 'Developer'},</h3>
+            <p style="color: #334155; line-height: 1.6;">
+              <strong>${senderInfo.name}</strong> (${senderInfo.email || 'SureDev Specialist'}) has sent you a new collaboration proposal!
+            </p>
+            ${message ? `
+              <div style="background-color: #f8fafc; border-left: 4px solid #047857; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+                <p style="margin: 0; font-style: italic; color: #475569;">"${message}"</p>
+              </div>
+            ` : ''}
+            <p style="color: #334155; line-height: 1.6;">
+              Log in to your <strong>SureDev Developer Dashboard &rarr; 🤝 Collaboration Hub</strong> to view details and respond to this request.
+            </p>
+            <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 12px; color: #94a3b8;">
+              SureDev • Automated Email Notification System
+            </div>
+          </div>
+        `;
+
+        await this.sendEmailNotification({
+          toEmail: receiverInfo.email,
+          recipientName: receiverInfo.name,
+          subject: `🤝 New Collaboration Request from ${senderInfo.name} on SureDev`,
+          body: emailBody,
+          type: 'collab_request',
+          senderName: senderInfo.name,
+          senderEmail: senderInfo.email
+        });
+      }
+    } catch (emailErr) {
+      console.warn("Failed to dispatch collaboration request email trigger:", emailErr);
+    }
   },
 
   async updateCollabRequestStatus(requestId: string, status: 'accepted' | 'declined', userId: string) {
@@ -755,6 +1028,54 @@ export const dbService = {
       const notifierId = status === 'accepted' ? 'Collaboration accepted' : 'Collaboration declined';
       await this.logActivity(userId, notifierId, `Responded to collab request.`);
       await this.createNotification(request.senderId, 'collab_accepted', 'Collaboration Update', `Your collaboration request was ${status}.`, userId);
+
+      // Trigger Email Notification when request status is updated (e.g. accepted)
+      try {
+        const acceptorInfo = await this.getUserInfoForEmail(userId);
+        const senderInfo = await this.getUserInfoForEmail(request.senderId);
+
+        if (senderInfo.email) {
+          const isAccepted = status === 'accepted';
+          const emailBody = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <div style="text-align: center; border-bottom: 2px solid ${isAccepted ? '#047857' : '#dc2626'}; padding-bottom: 15px; margin-bottom: 20px;">
+                <h2 style="color: ${isAccepted ? '#047857' : '#dc2626'}; margin: 0;">SureDev Ecosystem</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0;">Collaboration Status Update</p>
+              </div>
+              <h3 style="color: #0f172a;">Hello ${senderInfo.name || 'Developer'},</h3>
+              <p style="color: #334155; line-height: 1.6;">
+                ${isAccepted 
+                  ? `🎉 <strong>${acceptorInfo.name}</strong> has <strong>ACCEPTED</strong> your collaboration request on SureDev!`
+                  : `<strong>${acceptorInfo.name}</strong> has updated the status of your collaboration request to: <em>${status}</em>.`
+                }
+              </p>
+              <p style="color: #334155; line-height: 1.6;">
+                ${isAccepted 
+                  ? `You can now start coordinating, sharing project resources, and building together! Log in to your <strong>SureDev Developer Dashboard &rarr; 🤝 Collaboration Hub</strong> to connect directly with ${acceptorInfo.name} (${acceptorInfo.email || 'email registered'}).`
+                  : 'Log in to your SureDev Dashboard to explore other specialists and opportunities.'
+                }
+              </p>
+              <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 12px; color: #94a3b8;">
+                SureDev • Automated Email Notification System
+              </div>
+            </div>
+          `;
+
+          await this.sendEmailNotification({
+            toEmail: senderInfo.email,
+            recipientName: senderInfo.name,
+            subject: isAccepted 
+              ? `🎉 Collaboration Request Accepted by ${acceptorInfo.name}!` 
+              : `Collaboration Request Status Updated on SureDev`,
+            body: emailBody,
+            type: isAccepted ? 'collab_accepted' : 'collab_declined',
+            senderName: acceptorInfo.name,
+            senderEmail: acceptorInfo.email
+          });
+        }
+      } catch (emailErr) {
+        console.warn("Failed to dispatch collaboration status update email trigger:", emailErr);
+      }
     }
 
     if (db) {

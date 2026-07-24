@@ -83,10 +83,10 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
     // 1. Search text
     const query = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm || 
-      dev.name.toLowerCase().includes(query) ||
-      dev.title.toLowerCase().includes(query) ||
-      dev.bio.toLowerCase().includes(query) ||
-      dev.skills.some((skill) => skill.toLowerCase().includes(query));
+      (dev.name && dev.name.toLowerCase().includes(query)) ||
+      (dev.title && dev.title.toLowerCase().includes(query)) ||
+      (dev.bio && dev.bio.toLowerCase().includes(query)) ||
+      (dev.skills && dev.skills.some((skill) => skill.toLowerCase().includes(query)));
 
     // 2. Location
     const matchesLocation = selectedLocation === 'All Locations' || dev.location === selectedLocation;
@@ -338,7 +338,7 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <img
-                      src={dev.avatar}
+                      src={dev.profileImageUrl || dev.avatar}
                       alt={dev.name}
                       referrerPolicy="no-referrer"
                       className="w-14 h-14 rounded-full object-cover border border-brand-border shadow-sm group-hover:scale-105 transition-transform duration-300"

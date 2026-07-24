@@ -28,24 +28,25 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
   const [isSaved, setIsSaved] = useState(false);
 
   // Corporate Profile Fields
-  const [companyName, setCompanyName] = useState(employer.companyName);
-  const [contactPerson, setContactPerson] = useState(employer.contactPerson);
-  const [description, setDescription] = useState(employer.description);
-  const [website, setWebsite] = useState(employer.website);
-  const [phone, setPhone] = useState(employer.phone);
-  const [email, setEmail] = useState(employer.email);
-  const [location, setLocation] = useState(employer.location);
-  const [industry, setIndustry] = useState(employer.industry);
+  const emp = employer || {} as Partial<Employer>;
+  const [companyName, setCompanyName] = useState(emp.companyName || '');
+  const [contactPerson, setContactPerson] = useState(emp.contactPerson || '');
+  const [description, setDescription] = useState(emp.description || '');
+  const [website, setWebsite] = useState(emp.website || '');
+  const [phone, setPhone] = useState(emp.phone || '');
+  const [email, setEmail] = useState(emp.email || '');
+  const [location, setLocation] = useState(emp.location || '');
+  const [industry, setIndustry] = useState(emp.industry || '');
 
   // Talent Preferences Fields
-  const [desiredSkills, setDesiredSkills] = useState<string[]>(employer.desiredSkills || ['React', 'TypeScript', 'Node.js']);
+  const [desiredSkills, setDesiredSkills] = useState<string[]>(emp.desiredSkills || ['React', 'TypeScript', 'Node.js']);
   const [newSkill, setNewSkill] = useState('');
-  const [hiringCategories, setHiringCategories] = useState<string[]>(employer.hiringCategories || ['Backend', 'Full Stack']);
-  const [hiringTypes, setHiringTypes] = useState<string[]>(employer.hiringTypes || ['Full-time', 'Remote']);
-  const [targetQualifications, setTargetQualifications] = useState(employer.targetQualifications || 'Any (Open to all vetted talent)');
+  const [hiringCategories, setHiringCategories] = useState<string[]>(emp.hiringCategories || ['Backend', 'Full Stack']);
+  const [hiringTypes, setHiringTypes] = useState<string[]>(emp.hiringTypes || ['Full-time', 'Remote']);
+  const [targetQualifications, setTargetQualifications] = useState(emp.targetQualifications || 'Any (Open to all vetted talent)');
 
   // Logo Mock State
-  const [companyLogo, setCompanyLogo] = useState(employer.companyLogo);
+  const [companyLogo, setCompanyLogo] = useState(emp.companyLogo || '');
   const [isUploading, setIsUploading] = useState(false);
   const [logoProgress, setLogoProgress] = useState<number | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
 
   const handleSaveCorporate = (e: React.FormEvent) => {
     e.preventDefault();
+    const isCustom = Boolean(companyLogo && !companyLogo.includes('unsplash.com'));
     const updatedEmp: Employer = {
       ...employer,
       companyName,
@@ -71,6 +73,8 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
       hiringCategories,
       hiringTypes,
       companyLogo,
+      profileImageUrl: companyLogo,
+      hasCustomProfileImage: isCustom,
       targetQualifications,
     };
     onUpdateEmployer(updatedEmp);
@@ -159,6 +163,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
           hiringTypes,
           targetQualifications,
         };
+        console.log("Profile object returned to UI (Employer):", updatedEmp);
         onUpdateEmployer(updatedEmp);
         setTimeout(() => setLogoSuccess(false), 4000);
       } catch (err: any) {
@@ -186,7 +191,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                 name={companyName}
                 email={email}
                 src={companyLogo} 
-                hasCustomProfileImage={employer.hasCustomProfileImage}
+                hasCustomProfileImage={employer.hasCustomProfileImage || Boolean(companyLogo && !companyLogo.includes('unsplash.com'))}
                 sizeClassName="w-20 h-20 md:w-24 md:h-24"
                 roundedClassName="rounded-2xl"
                 className="border border-brand-border shadow-sm bg-brand-warm-white text-2xl md:text-3xl font-bold"

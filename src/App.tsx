@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { DeveloperDirectory } from './components/DeveloperDirectory';
@@ -17,6 +18,9 @@ import { Developer, Employer, UserSession, CollabRequest } from './types';
 import { DEVELOPERS as initialDevelopers, EMPLOYERS as initialEmployers } from './data';
 import { dbService } from './lib/firebaseService';
 import { auth, firebaseSignOut, onAuthStateChanged } from './lib/firebase';
+import { notificationService } from './services/notificationService';
+import { EmailPreferencesModal } from './components/EmailPreferencesModal';
+import { AdminEmailPanel } from './components/AdminEmailPanel';
 
 // Full Stack Session Role Components
 import { DeveloperDashboard } from './components/DeveloperDashboard';
@@ -29,6 +33,8 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isHireOpen, setIsHireOpen] = useState(false);
+  const [isEmailPrefsOpen, setIsEmailPrefsOpen] = useState(false);
+  const [isAdminEmailOpen, setIsAdminEmailOpen] = useState(false);
   
   // Theme Toggle State
   const [darkMode, setDarkMode] = useState(() => {
@@ -113,11 +119,15 @@ export default function App() {
             
             let devId: string | undefined;
             let empId: string | undefined;
+            let photoUrl = userDoc.profileImageUrl || userDoc.photoURL || firebaseUser.photoURL || undefined;
+            let hasCustom = userDoc.hasCustomProfileImage || Boolean(photoUrl && !photoUrl.includes('unsplash.com'));
 
             if (accountType === 'developer') {
               const profile = await dbService.getDeveloperProfile(uid);
               if (profile) {
                 devId = uid;
+                photoUrl = profile.profileImageUrl || profile.avatar || photoUrl;
+                hasCustom = profile.hasCustomProfileImage || hasCustom;
               } else {
                 await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
                 devId = uid;
@@ -126,6 +136,8 @@ export default function App() {
               const profile = await dbService.getEmployerProfile(uid);
               if (profile) {
                 empId = uid;
+                photoUrl = profile.profileImageUrl || profile.companyLogo || photoUrl;
+                hasCustom = profile.hasCustomProfileImage || hasCustom;
               } else {
                 await dbService.createDefaultEmployerProfile(uid, email, firebaseUser.displayName || '');
                 empId = uid;
@@ -138,19 +150,24 @@ export default function App() {
               isOnboarded: true,
               developerProfileId: devId,
               employerProfileId: empId,
-              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com')
+              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com'),
+              profileImageUrl: photoUrl,
+              hasCustomProfileImage: hasCustom
             });
             setActiveView('dashboard');
           } else {
             // New user, default to developer profile so they are immediately onboarded
-            await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
+            const devProfile = await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
+            const photoUrl = devProfile.profileImageUrl || devProfile.avatar || firebaseUser.photoURL || undefined;
             
             setUserSession({
               email,
               accountType: 'developer',
               isOnboarded: true,
               developerProfileId: uid,
-              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com')
+              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com'),
+              profileImageUrl: photoUrl,
+              hasCustomProfileImage: devProfile.hasCustomProfileImage
             });
             setActiveView('dashboard');
           }
@@ -176,6 +193,19 @@ export default function App() {
     if (exists) return;
 
     dbService.sendCollabRequest(senderId, receiverId, message);
+
+    // Trigger Collaboration Request Email + In-App Notification
+    const sender = developers.find(d => d.id === senderId);
+    const receiver = developers.find(d => d.id === receiverId);
+    if (receiver && receiver.email) {
+      notificationService.triggerCollabRequestEmail({
+        receiverId,
+        receiverEmail: receiver.email,
+        senderId,
+        senderName: sender?.name || 'A Developer',
+        message: message || 'Hey! Let\'s partner up on SureDev.'
+      });
+    }
   };
 
   const handleAcceptCollabRequest = (requestId: string) => {
@@ -302,6 +332,23 @@ export default function App() {
       });
       setActiveView('dashboard');
     }
+
+    // Dispatch Welcome & Verification Emails
+    if (formData.email) {
+      notificationService.triggerWelcomeEmail(
+        profileId,
+        formData.email,
+        formData.name || formData.contactPerson || 'Member',
+        accountType
+      );
+      if (!formData.isGoogleUser) {
+        notificationService.triggerVerificationEmail(
+          profileId,
+          formData.email,
+          formData.name || formData.contactPerson || 'Member'
+        );
+      }
+    }
   };
 
   // Handle Login Authentication
@@ -384,7 +431,15 @@ export default function App() {
       isGoogleUser: isGoogleUser
     });
     setActiveView('dashboard');
+
+    // Trigger Security Login Alert
+    notificationService.triggerSecurityAlert(
+      devId || empId || 'user',
+      email,
+      'Chrome on Windows (Aba, Abia State)'
+    );
   };
+
 
   // Handle Logout Action
   const handleLogout = async () => {
@@ -415,6 +470,16 @@ export default function App() {
     );
   }
 
+  // Check if current user session is an admin
+  const isAdminUser = Boolean(
+    userSession && (
+      userSession.isAdmin ||
+      userSession.email.toLowerCase().includes('admin') ||
+      userSession.email.toLowerCase().endsWith('@suredev.ng') ||
+      userSession.email.toLowerCase() === 'chigozieorji43@gmail.com'
+    )
+  );
+
   return (
     <div className="relative min-h-screen bg-brand-warm-white selection:bg-brand-green/20 selection:text-brand-midnight">
       
@@ -439,6 +504,9 @@ export default function App() {
         }}
         darkMode={darkMode}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
+        onOpenEmailPrefs={() => setIsEmailPrefsOpen(true)}
+        onOpenAdminEmail={isAdminUser ? () => setIsAdminEmailOpen(true) : undefined}
+        currentUserId={userSession?.developerProfileId || userSession?.employerProfileId}
       />
 
       {/* RENDER SEQUENCE MATRIX */}
@@ -470,50 +538,87 @@ export default function App() {
         />
       ) : activeView === 'dashboard' && userSession ? (
         /* RENDER SESSION DASHBOARDS */
-        userSession.accountType === 'developer' ? (
-          <DeveloperDashboard 
-            developer={developers.find(d => d.id === userSession.developerProfileId) || developers[0]}
-            onUpdateDeveloper={(updated) => {
-              setDevelopers(prev => prev.map(d => d.id === updated.id ? updated : d));
-              dbService.saveDeveloperProfile(updated.id, updated, updated.id);
-              setUserSession(prev => prev ? {
-                ...prev,
-                profileImageUrl: updated.profileImageUrl || updated.avatar,
-                hasCustomProfileImage: updated.hasCustomProfileImage
-              } : null);
-            }}
-            onPreviewProfile={() => {
-              const dev = developers.find(d => d.id === userSession.developerProfileId) || developers[0];
-              setActiveProfile(dev);
-            }}
-            collabRequests={collabRequests}
-            developers={developers}
-            onAcceptCollabRequest={handleAcceptCollabRequest}
-            onDeclineCollabRequest={handleDeclineCollabRequest}
-            onCancelCollabRequest={handleCancelCollabRequest}
-            isGoogleUser={userSession.isGoogleUser}
-            onConnectGoogle={handleDashboardConnectGoogle}
-          />
-        ) : (
-          <EmployerDashboard 
-            employer={employers.find(e => e.id === userSession.employerProfileId) || employers[0]}
-            onUpdateEmployer={(updated) => {
-              setEmployers(prev => prev.map(e => e.id === updated.id ? updated : e));
-              dbService.saveEmployerProfile(updated.id, updated, updated.id);
-              setUserSession(prev => prev ? {
-                ...prev,
-                profileImageUrl: updated.profileImageUrl || updated.companyLogo,
-                hasCustomProfileImage: updated.hasCustomProfileImage
-              } : null);
-            }}
-            onPreviewProfile={() => {
-              // Toggle directory view to preview active hires
-              setActiveView('directory');
-            }}
-            isGoogleUser={userSession.isGoogleUser}
-            onConnectGoogle={handleDashboardConnectGoogle}
-          />
-        )
+        userSession.accountType === 'developer' ? (() => {
+          const dev = developers.find(d => d.id === userSession.developerProfileId) || developers[0] || initialDevelopers[0] || {
+            id: userSession.developerProfileId || 'default-dev',
+            name: userSession.email ? userSession.email.split('@')[0] : 'Developer Profile',
+            title: 'Full Stack Engineer',
+            location: 'Aba',
+            experience: 3,
+            skills: ['TypeScript', 'React', 'Node.js'],
+            bio: 'Vetted software engineer on SureDev platform.',
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+            email: userSession.email || 'developer@suredev.app',
+            availability: 'immediate',
+            githubUrl: 'https://github.com',
+            linkedinUrl: 'https://linkedin.com',
+            portfolioUrl: 'https://suredev.app',
+            projects: [],
+            qualifications: [],
+            certifications: []
+          };
+          return (
+            <DeveloperDashboard 
+              developer={dev}
+              onUpdateDeveloper={(updated) => {
+                setDevelopers(prev => prev.map(d => d.id === updated.id ? updated : d));
+                dbService.saveDeveloperProfile(updated.id, updated, updated.id);
+                setUserSession(prev => prev ? {
+                  ...prev,
+                  profileImageUrl: updated.profileImageUrl || updated.avatar,
+                  hasCustomProfileImage: updated.hasCustomProfileImage || Boolean(updated.avatar && !updated.avatar.includes('unsplash.com'))
+                } : null);
+              }}
+              onPreviewProfile={() => {
+                setActiveProfile(dev);
+              }}
+              collabRequests={collabRequests}
+              developers={developers.length > 0 ? developers : initialDevelopers}
+              onAcceptCollabRequest={handleAcceptCollabRequest}
+              onDeclineCollabRequest={handleDeclineCollabRequest}
+              onCancelCollabRequest={handleCancelCollabRequest}
+              isGoogleUser={userSession.isGoogleUser}
+              onConnectGoogle={handleDashboardConnectGoogle}
+            />
+          );
+        })() : (() => {
+          const emp = employers.find(e => e.id === userSession.employerProfileId) || employers[0] || initialEmployers[0] || {
+            id: userSession.employerProfileId || 'default-emp',
+            companyName: userSession.email ? `${userSession.email.split('@')[0]} Enterprises` : 'Corporate Partner',
+            contactPerson: userSession.email ? userSession.email.split('@')[0] : 'Talent Manager',
+            description: 'Verified corporate employer on SureDev Abia platform.',
+            website: 'https://suredev.app',
+            phone: '+2348012345678',
+            email: userSession.email || 'employer@suredev.app',
+            location: 'Aba',
+            industry: 'Software & Technology',
+            companyLogo: 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=400&auto=format&fit=crop&q=80',
+            desiredSkills: ['React', 'TypeScript', 'Node.js'],
+            hiringCategories: ['Full Stack', 'Backend'],
+            hiringTypes: ['Full-time', 'Contract'],
+            targetQualifications: 'Open to all vetted talent'
+          };
+          return (
+            <EmployerDashboard 
+              employer={emp}
+              onUpdateEmployer={(updated) => {
+                setEmployers(prev => prev.map(e => e.id === updated.id ? updated : e));
+                dbService.saveEmployerProfile(updated.id, updated, updated.id);
+                setUserSession(prev => prev ? {
+                  ...prev,
+                  profileImageUrl: updated.profileImageUrl || updated.companyLogo,
+                  hasCustomProfileImage: updated.hasCustomProfileImage || Boolean(updated.companyLogo && !updated.companyLogo.includes('unsplash.com'))
+                } : null);
+              }}
+              onPreviewProfile={() => {
+                // Toggle directory view to preview active hires
+                setActiveView('directory');
+              }}
+              isGoogleUser={userSession.isGoogleUser}
+              onConnectGoogle={handleDashboardConnectGoogle}
+            />
+          );
+        })()
       ) : activeView === 'directory' && userSession ? (
         /* RENDER AUTH-SECURED REVERSE DIRECTORIES */
         userSession.accountType === 'developer' ? (
@@ -613,9 +718,45 @@ export default function App() {
         }}
       />
 
+      {/* Email Notification Preferences Modal */}
+      <EmailPreferencesModal
+        isOpen={isEmailPrefsOpen}
+        onClose={() => setIsEmailPrefsOpen(false)}
+        currentUserId={userSession?.developerProfileId || userSession?.employerProfileId}
+      />
+
+      {/* Admin Email Analytics & Announcement Modal */}
+      {isAdminEmailOpen && isAdminUser && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md p-2 sm:p-4 md:p-6 flex justify-center items-start sm:items-center min-h-screen">
+          <div className="relative w-full max-w-4xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Top Modal Header with Cancel/Close Button */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md shrink-0">
+              <span className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Admin Email & Analytics Center
+              </span>
+              <button
+                onClick={() => setIsAdminEmailOpen(false)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                aria-label="Close Admin Panel"
+              >
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
+
+            {/* Scrollable Modal Content */}
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6">
+              <AdminEmailPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating AI Assistant Widget */}
       <SureDevAIAssistant />
 
     </div>
   );
 }
+

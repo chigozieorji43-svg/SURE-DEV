@@ -10,9 +10,11 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
-  sendEmailVerification
+  sendEmailVerification,
+  updateProfile
 } from 'firebase/auth';
 import {
+  getFirestore,
   initializeFirestore,
   Firestore,
   collection,
@@ -42,14 +44,17 @@ import {
   uploadBytesResumable
 } from 'firebase/storage';
 
-// Define Firebase Configuration using VITE_ prefix environment variables
+import appletConfig from '../../firebase-applet-config.json';
+
+// Define Firebase Configuration using VITE_ prefix environment variables or applet config
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: appletConfig.apiKey || import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: appletConfig.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: appletConfig.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: appletConfig.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: appletConfig.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: appletConfig.appId || import.meta.env.VITE_FIREBASE_APP_ID,
+  firestoreDatabaseId: (appletConfig as Record<string, string>).firestoreDatabaseId || '(default)',
 };
 
 // Check if all essential keys are provided
@@ -71,30 +76,48 @@ if (isFirebaseConfigured) {
     } else {
       app = getApp();
     }
-    auth = getAuth(app);
-    db = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-    });
-    storage = getStorage(app);
-    
-    // Enable offline persistence
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Firestore persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Firestore persistence is not supported by this browser');
-      }
-    });
+  } catch (appErr) {
+    console.error("Failed to initialize Firebase App:", appErr);
+  }
 
-    console.log("Firebase Auth, Firestore, and Storage initialized successfully!");
-  } catch (error) {
-    console.error("Failed to initialize real Firebase:", error);
+  if (app) {
+    try {
+      auth = getAuth(app);
+    } catch (authErr) {
+      console.warn("Failed to initialize Firebase Auth:", authErr);
+    }
+
+    try {
+      const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+        ? firebaseConfig.firestoreDatabaseId
+        : undefined;
+      db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+      
+      if (db) {
+        enableIndexedDbPersistence(db).catch((err) => {
+          if (err.code === 'failed-precondition') {
+            console.warn('Firestore persistence failed: Multiple tabs open');
+          } else if (err.code === 'unimplemented') {
+            console.warn('Firestore persistence is not supported by this browser');
+          }
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Failed to initialize Firestore:", dbErr);
+    }
+
+    try {
+      storage = getStorage(app);
+    } catch (storageErr) {
+      console.warn("Failed to initialize Firebase Storage:", storageErr);
+    }
+
+    console.log("Firebase Auth, Firestore, and Storage initialization complete.");
   }
 } else {
   console.warn(
     "Firebase keys are not configured in your environment variables. " +
-    "SureDev is falling back to Secure Local Client-Side Authentication and local storage. " +
-    "To use real Firebase, define VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, and VITE_FIREBASE_PROJECT_ID in your settings."
+    "SureDev is falling back to Secure Local Client-Side Authentication and local storage."
   );
 }
 
@@ -110,6 +133,7 @@ export {
   signInWithPopup,
   sendPasswordResetEmail,
   sendEmailVerification,
+  updateProfile,
   // Firestore
   collection,
   doc,

@@ -22,7 +22,7 @@ import {
   where,
   getDocs
 } from '../lib/firebase';
-import { uploadFileToStorage, dbService } from '../lib/firebaseService';
+import { uploadFileToStorage, uploadProfileImage, dbService } from '../lib/firebaseService';
 
 interface DeveloperDetailsModalProps {
   isOpen: boolean;
@@ -1101,30 +1101,27 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'avatar' | 'companyLogo') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size exceeds 10MB limit.');
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit.');
         return;
       }
       try {
-        const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
-        const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
-        const uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
+        let uploadUrl = '';
+        if (auth && auth.currentUser) {
+          uploadUrl = await uploadProfileImage(auth.currentUser.uid, file, field === 'avatar' ? 'developer' : 'employer');
+        } else {
+          const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
+          const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
+          uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
+        }
         if (field === 'avatar') {
           setDevData((prev) => ({ ...prev, avatar: uploadUrl }));
         } else {
           setEmpData((prev) => ({ ...prev, companyLogo: uploadUrl }));
         }
       } catch (err: any) {
-        console.error("Storage upload failed, falling back to base64:", err);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (field === 'avatar') {
-            setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
-          } else {
-            setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
-          }
-        };
-        reader.readAsDataURL(file);
+        console.error("Storage upload failed:", err);
+        alert(err.message || "Failed to upload profile picture. Please select a valid JPG, PNG or WebP image.");
       }
     }
   };
@@ -1143,30 +1140,27 @@ export const JoinSureDevModal: React.FC<JoinSureDevModalProps> = ({ isOpen, onCl
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size exceeds 10MB limit.');
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit.');
         return;
       }
       try {
-        const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
-        const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
-        const uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
+        let uploadUrl = '';
+        if (auth && auth.currentUser) {
+          uploadUrl = await uploadProfileImage(auth.currentUser.uid, file, field === 'avatar' ? 'developer' : 'employer');
+        } else {
+          const storagePath = field === 'avatar' ? 'avatars' : 'company_logos';
+          const oldUrl = field === 'avatar' ? devData.avatar : empData.companyLogo;
+          uploadUrl = await uploadFileToStorage(file, storagePath, oldUrl);
+        }
         if (field === 'avatar') {
           setDevData((prev) => ({ ...prev, avatar: uploadUrl }));
         } else {
           setEmpData((prev) => ({ ...prev, companyLogo: uploadUrl }));
         }
       } catch (err: any) {
-        console.error("Storage upload failed, falling back to base64:", err);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (field === 'avatar') {
-            setDevData((prev) => ({ ...prev, avatar: reader.result as string }));
-          } else {
-            setEmpData((prev) => ({ ...prev, companyLogo: reader.result as string }));
-          }
-        };
-        reader.readAsDataURL(file);
+        console.error("Storage upload failed:", err);
+        alert(err.message || "Failed to upload profile picture. Please select a valid JPG, PNG or WebP image.");
       }
     }
   };

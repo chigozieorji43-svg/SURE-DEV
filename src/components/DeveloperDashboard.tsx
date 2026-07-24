@@ -39,26 +39,27 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
   const [isSaved, setIsSaved] = useState(false);
 
   // Profile fields state
-  const [name, setName] = useState(developer.name);
-  const [title, setTitle] = useState(developer.title);
-  const [location, setLocation] = useState(developer.location);
-  const [experience, setExperience] = useState(developer.experience.toString());
-  const [bio, setBio] = useState(developer.bio);
-  const [currentWorkplace, setCurrentWorkplace] = useState(developer.currentWorkplace || '');
-  const [githubUrl, setGithubUrl] = useState(developer.githubUrl);
-  const [linkedinUrl, setLinkedinUrl] = useState(developer.linkedinUrl);
-  const [twitterUrl, setTwitterUrl] = useState(developer.twitterUrl || '');
-  const [portfolioUrl, setPortfolioUrl] = useState(developer.portfolioUrl);
-  const [email, setEmail] = useState(developer.email);
-  const [phone, setPhone] = useState(developer.phone || '');
-  const [availability, setAvailability] = useState<'immediate' | 'soon' | 'no'>(developer.availability);
+  const dev = developer || {} as Partial<Developer>;
+  const [name, setName] = useState(dev.name || '');
+  const [title, setTitle] = useState(dev.title || '');
+  const [location, setLocation] = useState(dev.location || '');
+  const [experience, setExperience] = useState((dev.experience || 1).toString());
+  const [bio, setBio] = useState(dev.bio || '');
+  const [currentWorkplace, setCurrentWorkplace] = useState(dev.currentWorkplace || '');
+  const [githubUrl, setGithubUrl] = useState(dev.githubUrl || '');
+  const [linkedinUrl, setLinkedinUrl] = useState(dev.linkedinUrl || '');
+  const [twitterUrl, setTwitterUrl] = useState(dev.twitterUrl || '');
+  const [portfolioUrl, setPortfolioUrl] = useState(dev.portfolioUrl || '');
+  const [email, setEmail] = useState(dev.email || '');
+  const [phone, setPhone] = useState(dev.phone || '');
+  const [availability, setAvailability] = useState<'immediate' | 'soon' | 'no'>(dev.availability || 'immediate');
 
   // Skill management state
-  const [skills, setSkills] = useState<string[]>(developer.skills);
+  const [skills, setSkills] = useState<string[]>(dev.skills || ['React', 'TypeScript']);
   const [newSkill, setNewSkill] = useState('');
 
   // Experience state
-  const [experiences, setExperiences] = useState(developer.workExperience || [
+  const [experiences, setExperiences] = useState(dev.workExperience || [
     {
       id: 'exp-1',
       role: 'Senior Software Engineer',
@@ -99,6 +100,7 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    const isCustom = Boolean(avatar && !avatar.includes('unsplash.com'));
     const updatedDev: Developer = {
       ...developer,
       name,
@@ -116,6 +118,8 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
       availability,
       skills,
       avatar,
+      profileImageUrl: avatar,
+      hasCustomProfileImage: isCustom,
       coverPhoto,
       workExperience: experiences,
       projects: projects,
@@ -243,6 +247,7 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
           workExperience: experiences,
           projects: projects,
         };
+        console.log("Profile object returned to UI (Developer):", updatedDev);
         onUpdateDeveloper(updatedDev);
         setTimeout(() => setAvatarSuccess(false), 4000);
       } catch (err: any) {
@@ -345,7 +350,7 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
                 name={name}
                 email={email}
                 src={avatar} 
-                hasCustomProfileImage={developer.hasCustomProfileImage}
+                hasCustomProfileImage={developer.hasCustomProfileImage || Boolean(avatar && !avatar.includes('unsplash.com'))}
                 sizeClassName="w-24 h-24 md:w-32 md:h-32"
                 roundedClassName="rounded-2xl"
                 className="border-4 border-white shadow-premium bg-brand-warm-white text-3xl md:text-5xl"

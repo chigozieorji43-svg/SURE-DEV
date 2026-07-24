@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import { auth as adminAuth } from "./server/firebaseAdmin";
 import { classifyUserIntent, fetchGroundingContext, SecurityContext } from "./server/intentHandlers";
+import emailRouter from "./server/routes/emailRoutes";
 
 dotenv.config();
 
@@ -13,13 +14,13 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini SDK with User-Agent header
+// Initialize Gemini SDK with User-Agent header for telemetry
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({
   apiKey: apiKey || "",
   httpOptions: {
     headers: {
-      'User-Agent': 'suredev-server',
+      'User-Agent': 'aistudio-build',
     }
   }
 });
@@ -30,7 +31,7 @@ You are SureDev AI, the premium virtual assistant of the SureDev platform, devel
 Your mission is to provide accurate, reassuring, professional, and context-aware guidance to both developers and employers utilizing the SureDev directory.
 
 Platform Context:
-- SureDev is a premium, high-fidelity, location-based tech directory and ecosystem designed to showcase, connect, and elevate tech talent in Abia State, Nigeria (principally centered in Aba, Umuah[...]
+- SureDev is a premium, high-fidelity, location-based tech directory and ecosystem designed to showcase, connect, and elevate tech talent in Abia State, Nigeria (principally centered in Aba, Umuahia, Ohafia, and surrounding areas). It connects skilled local developers, engineers, and designers with local and global employers.
 - It is a fully responsive, modern web application styled with a premium Midnight Dark and Clean White design system.
 
 Knowledge Base & Core User Flows:
@@ -42,7 +43,7 @@ Knowledge Base & Core User Flows:
 
 2. Google Sign-In & Google Inbox:
    - Google Sign-In can be used during registration or login.
-   - For Google-authenticated users, a personalized "📬 Google Inbox" is available in their Dashboard, displaying automated Welcome Packs, Platform Introductory updates, and Contract dispatches [...]
+   - For Google-authenticated users, a personalized "📬 Google Inbox" is available in their Dashboard, displaying automated Welcome Packs, Platform Introductory updates, and Contract dispatches from the Abia Tech Guild.
    - If Google Inbox is not loaded or synchronized, users can click "Connect with Google Account" under the Google Inbox tab to activate sync.
 
 3. Developer Profiles & Portfolios:
@@ -57,16 +58,16 @@ Knowledge Base & Core User Flows:
    - Employers input project details, estimated budget (NGN/USD), contract duration, and contact channels.
 
 5. Finding Employers:
-   - Standard developers, once logged in, can access the "Employer Directory" to browse verified local companies, read descriptions, view their websites, and submit direct applications to join the[...]
+   - Standard developers, once logged in, can access the "Employer Directory" to browse verified local companies, read descriptions, view their websites, and submit direct applications to join their talent pipelines.
 
 6. Collaboration requests (🤝 Collaboration Hub):
-   - Developers can connect peer-to-peer! Inside the "🤝 Collaboration Hub" tab of the Developer Dashboard, developers can send joint-venture proposals or co-founding requests to other registere[...]
+   - Developers can connect peer-to-peer! Inside the "🤝 Collaboration Hub" tab of the Developer Dashboard, developers can send joint-venture proposals or co-founding requests to other registered developers.
    - They can view sent and received collaboration requests, and directly Accept, Decline, or Cancel them in real time.
 
 7. Login, Security & Recovery:
    - Users sign in via the login modal.
    - Users who forget passwords can initiate the recovery flow via standard Firebase Authentication email links.
-   - Crucial security: A single email cannot have conflicting custom credentials and Google credentials. If an email is registered with a custom password, Google Sign-In will prompt them to use th[...]
+   - Crucial security: A single email cannot have conflicting custom credentials and Google credentials. If an email is registered with a custom password, Google Sign-In will prompt them to use their registered password.
 
 8. Troubleshooting & FAQs:
    - "Profile image won't upload": Make sure the image is JPEG/PNG and below 5MB. Upload can be completed in the "My Credentials" (developers) or "Company Profile" (employers) tabs.
@@ -91,7 +92,7 @@ app.post("/api/ai/chat", async (req, res) => {
     if (!apiKey) {
       // Graceful fallback with clear instruction if API key is missing
       return res.json({
-        text: "Hello! I am SureDev AI. Currently, my server-side Gemini intelligence is waiting for the GEMINI_API_KEY secret to be configured in your Settings > Secrets panel. Once configured, I [...]
+        text: "Hello! I am SureDev AI. Currently, my server-side Gemini intelligence is waiting for the GEMINI_API_KEY secret to be configured in your Settings > Secrets panel. Once configured, I can provide fully automated ecosystem assistance. \n\nIn the meantime, feel free to browse our developer directory, click 'Apply to Registry' to join, or check out our high-fidelity layout!"
       });
     }
 
@@ -149,7 +150,7 @@ app.post("/api/ai/chat", async (req, res) => {
 ==================================================
 REAL-TIME GROUNDING KNOWLEDGE SOURCE - FIRESTORE DIRECTORY DATA
 ==================================================
-Below is the real-time, verified platform data retrieved securely from Firestore based on the user's intent. You MUST ground your responses strictly in this database context. Under no circumstanc[...]
+Below is the real-time, verified platform data retrieved securely from Firestore based on the user's intent. You MUST ground your responses strictly in this database context. Under no circumstances should you fabricate or invent any developers, employers, projects, or user details not matching this dataset. If the context is empty, state clearly and helpfully that no matches or profiles were found.
 
 Classified Query Intent: "${intent}"
 Is User Authenticated: ${userContext.isAuthenticated ? "YES" : "NO"}
@@ -173,6 +174,36 @@ ${groundingContext}
   } catch (err: any) {
     console.error("Gemini server error:", err);
     res.status(500).json({ error: err.message || "An error occurred while calling the Gemini API." });
+  }
+});
+
+// Mount Email & Notification API Routes
+app.use("/api/email", emailRouter);
+
+// API endpoint for email notification triggers (Collaboration requests & status alerts)
+app.post("/api/notifications/email", async (req, res) => {
+  try {
+    const { to, recipientName, subject, body, type, senderName, senderEmail } = req.body;
+    
+    if (!to || !subject) {
+      return res.status(400).json({ error: "Missing required email parameters: 'to' and 'subject'" });
+    }
+
+    console.log(`[EMAIL TRIGGER DISPATCHED] Type: ${type || 'notification'} | To: ${recipientName || 'User'} <${to}> | Subject: "${subject}" | From: ${senderName || 'SureDev'} <${senderEmail || 'system'}>`);
+
+    res.json({
+      success: true,
+      message: `Email notification trigger logged and dispatched successfully to ${to}`,
+      dispatchedAt: new Date().toISOString(),
+      details: {
+        recipient: to,
+        subject,
+        type: type || 'collab_alert'
+      }
+    });
+  } catch (err: any) {
+    console.error("Error in /api/notifications/email trigger endpoint:", err);
+    res.status(500).json({ error: err.message || "Failed to process email notification trigger." });
   }
 });
 

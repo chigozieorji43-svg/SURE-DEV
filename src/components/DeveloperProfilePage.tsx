@@ -459,7 +459,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
             <div className="flex flex-col md:flex-row gap-8 items-start md:items-end justify-between">
               <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
                 <img
-                  src={developer.avatar}
+                  src={developer.profileImageUrl || developer.avatar}
                   alt={developer.name}
                   referrerPolicy="no-referrer"
                   className="w-28 h-28 rounded-2xl object-cover border-4 border-white shadow-premium bg-brand-warm-white -mt-14 md:-mt-20 relative z-20"

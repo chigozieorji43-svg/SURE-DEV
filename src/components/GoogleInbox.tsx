@@ -172,13 +172,60 @@ export const GoogleInbox: React.FC<GoogleInboxProps> = ({
     `
   };
 
-  const [emails, setEmails] = useState<EmailMessage[]>([
-    accountType === 'developer' ? welcomeEmailDev : welcomeEmailEmp,
-    sysUpdateEmail,
-  ]);
+  const [emails, setEmails] = useState<EmailMessage[]>(() => {
+    let customEmails: EmailMessage[] = [];
+    if (userEmail) {
+      try {
+        const raw = localStorage.getItem(`email_inbox_${userEmail}`);
+        if (raw) customEmails = JSON.parse(raw);
+      } catch (e) {
+        console.warn("Error parsing inbox emails:", e);
+      }
+    }
+    return [
+      ...customEmails,
+      accountType === 'developer' ? welcomeEmailDev : welcomeEmailEmp,
+      sysUpdateEmail,
+    ];
+  });
+
+  React.useEffect(() => {
+    if (userEmail) {
+      try {
+        const raw = localStorage.getItem(`email_inbox_${userEmail}`);
+        if (raw) {
+          const customEmails: EmailMessage[] = JSON.parse(raw);
+          setEmails(() => {
+            const defaults = [accountType === 'developer' ? welcomeEmailDev : welcomeEmailEmp, sysUpdateEmail];
+            const existingIds = new Set(customEmails.map(c => c.id));
+            const remainingDefaults = defaults.filter(d => !existingIds.has(d.id));
+            return [...customEmails, ...remainingDefaults];
+          });
+        }
+      } catch (e) {
+        console.warn("Error syncing inbox emails:", e);
+      }
+    }
+  }, [userEmail, accountType]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    if (userEmail) {
+      try {
+        const raw = localStorage.getItem(`email_inbox_${userEmail}`);
+        if (raw) {
+          const customEmails: EmailMessage[] = JSON.parse(raw);
+          setEmails(() => {
+            const defaults = [accountType === 'developer' ? welcomeEmailDev : welcomeEmailEmp, sysUpdateEmail];
+            const existingIds = new Set(customEmails.map(c => c.id));
+            const remainingDefaults = defaults.filter(d => !existingIds.has(d.id));
+            return [...customEmails, ...remainingDefaults];
+          });
+        }
+      } catch (e) {
+        console.warn("Error refreshing inbox emails:", e);
+      }
+    }
     setTimeout(() => {
       setIsRefreshing(false);
     }, 800);

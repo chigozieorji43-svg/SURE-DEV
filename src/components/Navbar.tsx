@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Home, Sun, Moon } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Home, Sun, Moon, Settings, ShieldAlert } from 'lucide-react';
 import suredevBrandLogo from '../assets/images/suredev_brand_logo_1784065255454.jpg';
 import { UserSession } from '../types';
 import { UserAvatar } from './UserAvatar';
+import { InAppNotificationCenter } from './InAppNotificationCenter';
 
 interface NavbarProps {
   userSession: UserSession | null;
@@ -14,6 +15,9 @@ interface NavbarProps {
   onSectionScroll: (sectionId: string) => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
+  onOpenEmailPrefs?: () => void;
+  onOpenAdminEmail?: () => void;
+  currentUserId?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +30,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSectionScroll,
   darkMode,
   onToggleDarkMode,
+  onOpenEmailPrefs,
+  onOpenAdminEmail,
+  currentUserId,
 }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -177,7 +184,33 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {userSession ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <InAppNotificationCenter
+                currentUserId={currentUserId || userSession.developerProfileId || userSession.employerProfileId}
+                onNavigate={(v) => onViewChange(v as any)}
+              />
+
+              {onOpenEmailPrefs && (
+                <button
+                  onClick={onOpenEmailPrefs}
+                  className="p-2.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none"
+                  title="Email Preferences"
+                  aria-label="Email Preferences"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
+
+              {onOpenAdminEmail && (
+                <button
+                  onClick={onOpenAdminEmail}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1"
+                  title="Admin Email Panel"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" /> Admin
+                </button>
+              )}
+
               <UserAvatar 
                 email={userSession.email}
                 src={userSession.profileImageUrl}
@@ -187,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => onViewChange('dashboard')}
               />
               <div className="flex flex-col text-right">
-                <span className="text-xs font-semibold text-brand-midnight truncate max-w-[120px]">
+                <span className="text-xs font-semibold text-brand-midnight dark:text-slate-200 truncate max-w-[120px]">
                   {userSession.email}
                 </span>
                 <span className="text-[10px] font-mono text-brand-green uppercase tracking-wider font-bold">
@@ -196,7 +229,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <button
                 onClick={onLogoutClick}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-brand-border dark:border-white/10 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border border-brand-border dark:border-white/10 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:border-rose-200 rounded-xl transition-all cursor-pointer"
               >
                 <LogOut size={13} />
                 Sign Out

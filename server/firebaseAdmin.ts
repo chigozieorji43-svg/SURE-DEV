@@ -1,13 +1,14 @@
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
+import appletConfig from '../firebase-applet-config.json';
 
 let app: App | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
 let isAdminAvailable = false;
 
-const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT;
+const projectId = appletConfig.projectId || process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT;
 
 if (projectId) {
   try {

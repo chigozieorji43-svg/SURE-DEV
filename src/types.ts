@@ -72,6 +72,7 @@ export interface UserSession {
   isGoogleUser?: boolean;
   profileImageUrl?: string;
   hasCustomProfileImage?: boolean;
+  isAdmin?: boolean;
 }
 
 
@@ -99,5 +100,54 @@ export interface CollabRequest {
   status: 'pending' | 'accepted' | 'declined';
   message?: string;
   timestamp: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  receiverId: string;
+  senderId?: string;
+  senderName?: string;
+  type: 'welcome' | 'verification' | 'collab_request' | 'message' | 'weekly_update' | 'announcement' | 'security_alert' | 'general';
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+  actionUrl?: string;
+}
+
+export interface EmailPreferences {
+  weeklyEmails: boolean;
+  securityAlerts: boolean;
+  collaborationEmails: boolean;
+  marketingEmails: boolean;
+}
+
+export interface EmailLog {
+  id: string;
+  recipientEmail: string;
+  recipientId?: string;
+  emailType: string;
+  subject: string;
+  status: 'sent' | 'failed' | 'simulated';
+  error?: string;
+  sentAt: string;
+}
+
+export interface EmailAnalytics {
+  emailsSent: number;
+  emailsFailed: number;
+  weeklySends: number;
+  openRatePlaceholder: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  targetAudience: 'all' | 'developers' | 'employers' | 'profession';
+  targetProfession?: string;
+  sentBy: string;
+  createdAt: string;
+  recipientCount: number;
 }
 
