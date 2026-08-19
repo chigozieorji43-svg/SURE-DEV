@@ -50,12 +50,51 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
-  const [role, setRole] = useState<'developer' | 'employer' | null>(null);
-  const [developerProfile, setDeveloperProfile] = useState<Developer | null>(null);
-  const [employerProfile, setEmployerProfile] = useState<Employer | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(() => auth?.currentUser || null);
+  const [userDoc, setUserDoc] = useState<UserDoc | null>(() => {
+    try {
+      const uid = auth?.currentUser?.uid;
+      if (uid) {
+        const stored = localStorage.getItem(`user_doc_${uid}`);
+        if (stored) return JSON.parse(stored);
+      }
+    } catch {}
+    return null;
+  });
+  const [role, setRole] = useState<'developer' | 'employer' | null>(() => {
+    try {
+      const uid = auth?.currentUser?.uid;
+      if (uid) {
+        const stored = localStorage.getItem(`user_doc_${uid}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.role || parsed.accountType || null;
+        }
+      }
+    } catch {}
+    return null;
+  });
+  const [developerProfile, setDeveloperProfile] = useState<Developer | null>(() => {
+    try {
+      const uid = auth?.currentUser?.uid;
+      if (uid) {
+        const stored = localStorage.getItem(`developer_profile_${uid}`);
+        if (stored) return JSON.parse(stored);
+      }
+    } catch {}
+    return null;
+  });
+  const [employerProfile, setEmployerProfile] = useState<Employer | null>(() => {
+    try {
+      const uid = auth?.currentUser?.uid;
+      if (uid) {
+        const stored = localStorage.getItem(`employer_profile_${uid}`);
+        if (stored) return JSON.parse(stored);
+      }
+    } catch {}
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(false);
   const [authMismatch, setAuthMismatch] = useState<AuthMismatchInfo | null>(null);
   const [googleNewUserPending, setGoogleNewUserPending] = useState<GoogleNewUserInfo | null>(null);
 

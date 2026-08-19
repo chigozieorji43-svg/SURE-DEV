@@ -124,11 +124,11 @@ export const DeveloperDirectoryEmployer: React.FC<DeveloperDirectoryEmployerProp
         >
           <span>All Sectors</span>
         </button>
-        {categories.map((cat) => {
+        {categories.map((cat, idx) => {
           const isSelected = selectedCategory === cat.name;
           return (
             <button
-              key={cat.name}
+              key={`emp-cat-${cat.name}-${idx}`}
               onClick={() => setSelectedCategory(cat.name)}
               className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 isSelected

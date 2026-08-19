@@ -476,7 +476,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
           ] as const
         ).map((tab) => (
           <button
-            key={tab}
+            key={`emp-dash-tab-${tab}`}
             onClick={() => handleTabChange(tab)}
             className={`px-3 sm:px-6 py-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === tab
@@ -921,11 +921,11 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                   Categories of Recruitment
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {availableCategories.map((cat) => {
+                  {availableCategories.map((cat, idx) => {
                     const isSelected = hiringCategories.includes(cat);
                     return (
                       <button
-                        key={cat}
+                        key={`avail-cat-${cat}-${idx}`}
                         onClick={() => handleToggleCategory(cat)}
                         className={`p-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                           isSelected 
@@ -948,11 +948,11 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                   Contract & Commitment Types
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {availableHiringTypes.map((type) => {
+                  {availableHiringTypes.map((type, idx) => {
                     const isSelected = hiringTypes.includes(type);
                     return (
                       <button
-                        key={type}
+                        key={`avail-type-${type}-${idx}`}
                         onClick={() => handleToggleHiringType(type)}
                         className={`p-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                           isSelected 

@@ -564,7 +564,7 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
           ] as const
         ).map((tab) => (
           <button
-            key={tab}
+            key={`dev-dash-tab-${tab}`}
             onClick={() => handleTabChange(tab)}
             className={`px-3 sm:px-6 py-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === tab
@@ -1473,12 +1473,12 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {collabRequests
                       .filter(r => (r.senderId === developer.id || r.receiverId === developer.id) && r.status === 'accepted')
-                      .map((req) => {
+                      .map((req, idx) => {
                         const partnerId = req.senderId === developer.id ? req.receiverId : req.senderId;
                         const partner = developers.find(d => d.id === partnerId);
                         if (!partner) return null;
                         return (
-                          <div key={req.id} className="p-4 rounded-2xl border border-brand-border bg-white shadow-sm hover:shadow-premium transition-all flex flex-col justify-between space-y-4">
+                          <div key={req.id ? `${req.id}-${idx}` : idx} className="p-4 rounded-2xl border border-brand-border bg-white shadow-sm hover:shadow-premium transition-all flex flex-col justify-between space-y-4">
                             <div className="flex gap-3 items-start">
                               <img src={partner.avatar} alt={partner.name} referrerPolicy="no-referrer" className="w-12 h-12 rounded-xl object-cover border border-brand-border" />
                               <div>
@@ -1530,11 +1530,11 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
                   <div className="space-y-2.5">
                     {collabRequests
                       .filter(r => r.senderId === developer.id && r.status === 'pending')
-                      .map((req) => {
+                      .map((req, idx) => {
                         const receiver = developers.find(d => d.id === req.receiverId);
                         if (!receiver) return null;
                         return (
-                          <div key={req.id} className="p-3.5 rounded-xl border border-brand-border bg-brand-warm-white/10 flex items-center justify-between gap-3">
+                          <div key={req.id ? `${req.id}-${idx}` : idx} className="p-3.5 rounded-xl border border-brand-border bg-brand-warm-white/10 flex items-center justify-between gap-3">
                             <div className="flex gap-2.5 items-center">
                               <img src={receiver.avatar} alt={receiver.name} referrerPolicy="no-referrer" className="w-8 h-8 rounded-lg object-cover" />
                               <div>

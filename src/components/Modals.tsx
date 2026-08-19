@@ -288,7 +288,7 @@ export const DeveloperDetailsModal: React.FC<DeveloperDetailsModalProps> = ({
                         </div>
                         <div className="space-y-6 relative before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-brand-border/60">
                           {timeline.map((item, index) => (
-                            <div key={index} className="relative pl-8 group">
+                            <div key={`modal-timeline-${item.year}-${index}`} className="relative pl-8 group">
                               <span className="absolute left-[5px] top-1.5 w-3 h-3 rounded-full bg-brand-green border-2 border-white ring-4 ring-brand-green/15 transition-transform group-hover:scale-125" />
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <span className="text-xs font-mono font-bold text-brand-green bg-brand-green/5 px-2 py-0.5 rounded-md">
@@ -622,7 +622,7 @@ export const DeveloperDetailsModal: React.FC<DeveloperDetailsModalProps> = ({
                         <div className="space-y-2.5">
                           {templates.map((tpl, i) => (
                             <button
-                              key={i}
+                              key={`modal-template-${tpl.label}-${i}`}
                               type="button"
                               onClick={() => setMessage(tpl.text)}
                               className="w-full text-left p-3 rounded-xl border border-brand-border hover:border-brand-green bg-brand-warm-white hover:bg-white text-xs font-semibold text-gray-700 transition-all cursor-pointer shadow-sm"

@@ -39,9 +39,9 @@ export const WhySureDev: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {points.map((point) => (
+          {points.map((point, idx) => (
             <div
-              key={point.title}
+              key={`why-point-${point.title}-${idx}`}
               className="bg-brand-warm-white rounded-[24px] p-8 border border-brand-border hover:border-brand-green/30 hover:shadow-premium transition-all duration-300"
             >
               <div className="w-12 h-12 rounded-2xl bg-white border border-brand-border flex items-center justify-center mb-6 shadow-sm">

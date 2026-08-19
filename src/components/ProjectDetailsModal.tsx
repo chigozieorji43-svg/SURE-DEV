@@ -341,7 +341,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                     <div className="flex flex-wrap gap-2">
                       {project.requiredSkills.map((skill, idx) => (
                         <span
-                          key={idx}
+                          key={`req-skill-${skill}-${idx}`}
                           className="px-3 py-1 rounded-xl text-xs font-medium bg-slate-800 text-slate-200 border border-slate-700"
                         >
                           {skill}
@@ -493,7 +493,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                             <div className="flex items-center text-amber-400">
                               {[...Array(5)].map((_, i) => (
                                 <Star
-                                  key={i}
+                                  key={`star-${rev.id || idx}-${i}`}
                                   className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current' : 'text-slate-700'}`}
                                 />
                               ))}

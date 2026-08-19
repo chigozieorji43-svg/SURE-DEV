@@ -290,7 +290,7 @@ export const PostProject: React.FC<PostProjectProps> = ({
 
             <div className="flex flex-wrap gap-1.5 mb-4">
               {publishedPost.skills.map((skill, idx) => (
-                <span key={idx} className="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-medium rounded">
+                <span key={`pub-skill-${skill}-${idx}`} className="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-medium rounded">
                   {skill}
                 </span>
               ))}
@@ -456,7 +456,7 @@ export const PostProject: React.FC<PostProjectProps> = ({
           {imageUrls.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
               {imageUrls.map((url, idx) => (
-                <div key={idx} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-900 aspect-video">
+                <div key={`upload-url-${url}-${idx}`} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-900 aspect-video">
                   <img
                     src={url}
                     alt={`Uploaded screenshot ${idx + 1}`}
@@ -538,7 +538,7 @@ export const PostProject: React.FC<PostProjectProps> = ({
           <div className="flex flex-wrap gap-2 mb-3">
             {skills.map((skill, idx) => (
               <span
-                key={idx}
+                key={`${skill}-${idx}`}
                 className="px-3 py-1 bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-gray-200 dark:border-slate-700"
               >
                 {skill}
@@ -582,7 +582,7 @@ export const PostProject: React.FC<PostProjectProps> = ({
             <span className="text-xs text-gray-400">Suggestions:</span>
             {COMMON_SKILL_SUGGESTIONS.filter(s => !skills.includes(s)).slice(0, 7).map((s, idx) => (
               <button
-                key={idx}
+                key={`${s}-${idx}`}
                 type="button"
                 onClick={() => handleAddSkill(s)}
                 className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 rounded transition-colors cursor-pointer"

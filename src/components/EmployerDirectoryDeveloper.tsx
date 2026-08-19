@@ -125,10 +125,10 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredEmployers.map((emp) => (
+          {filteredEmployers.map((emp, idx) => (
             <motion.div
               layout
-              key={emp.id}
+              key={emp.id ? `${emp.id}-${idx}` : idx}
               className="bg-white rounded-3xl border border-brand-border shadow-sm p-6 md:p-8 flex flex-col justify-between gap-6 hover:shadow-premium hover:-translate-y-0.5 transition-all duration-300"
             >
               

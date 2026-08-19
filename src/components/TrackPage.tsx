@@ -326,7 +326,7 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                 <div className="space-y-3">
                   <div className="bg-black/40 p-3 rounded-xl border border-emerald-950 font-mono text-[9px] text-emerald-400 h-24 overflow-y-auto space-y-1 scrollbar-none">
                     {diagnosticLogs.map((log, i) => (
-                      <p key={i} className={log.startsWith('$') ? 'text-brand-gold' : 'text-gray-400'}>{log}</p>
+                      <p key={`diag-log-${i}-${log.substring(0, 10)}`} className={log.startsWith('$') ? 'text-brand-gold' : 'text-gray-400'}>{log}</p>
                     ))}
                   </div>
                   <button

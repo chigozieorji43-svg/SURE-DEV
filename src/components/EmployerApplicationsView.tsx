@@ -153,7 +153,7 @@ export const EmployerApplicationsView: React.FC<EmployerApplicationsViewProps> =
           >
             <option value="all">All Posted Projects ({projectTitles.length})</option>
             {projectTitles.map((t, idx) => (
-              <option key={idx} value={t}>{t}</option>
+              <option key={`${t}-${idx}`} value={t}>{t}</option>
             ))}
           </select>
         )}

@@ -425,6 +425,10 @@ export const dbService = {
           } else if (userDocData.accountType) {
             userDocData.role = userDocData.accountType;
           }
+          if (userDocData.role || userDocData.accountType) {
+            safeSave(`user_doc_${uid}`, userDocData);
+            return userDocData;
+          }
         }
 
         const targetEmail = userEmail || (userDocData?.email ? userDocData.email.toLowerCase().trim() : '');
@@ -876,8 +880,10 @@ export const dbService = {
       callback(stored);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }
@@ -997,8 +1003,10 @@ export const dbService = {
       callback(stored);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }
@@ -1221,8 +1229,10 @@ export const dbService = {
       callback(stored);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }
@@ -3868,8 +3878,10 @@ export const dbService = {
       callback(stored);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }
@@ -3989,8 +4001,10 @@ export const dbService = {
       callback(devApps);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }
@@ -4042,8 +4056,10 @@ export const dbService = {
       callback(empApps);
     };
 
+    // Always emit cached local state immediately for instant 0ms UI load
+    syncLocal();
+
     if (!db) {
-      syncLocal();
       window.addEventListener('storage', syncLocal);
       return () => window.removeEventListener('storage', syncLocal);
     }

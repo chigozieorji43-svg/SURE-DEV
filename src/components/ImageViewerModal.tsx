@@ -232,7 +232,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
           {/* Current Image */}
           <div className="relative max-w-full max-h-full flex items-center justify-center pointer-events-auto">
             <motion.img
-              key={currentImage}
+              key={`img-view-${currentImage}-${currentIndex}`}
               src={currentImage}
               alt={`Project Preview ${currentIndex + 1}`}
               onDoubleClick={handleToggleZoom}
@@ -267,7 +267,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
           <div className="px-6 py-3 border-t border-white/10 bg-black/60 flex items-center justify-center gap-3 overflow-x-auto shrink-0 z-10">
             {validImages.map((imgUrl, idx) => (
               <button
-                key={idx}
+                key={`thumb-${imgUrl}-${idx}`}
                 onClick={() => handleSelectImage(idx)}
                 className={`relative w-16 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
                   idx === currentIndex 

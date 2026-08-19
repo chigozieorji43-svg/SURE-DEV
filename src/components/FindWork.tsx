@@ -322,7 +322,7 @@ export const FindWork: React.FC<FindWorkProps> = ({
 
             {/* Skeleton Placeholders */}
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-6 animate-pulse">
+              <div key={`find-work-skeleton-${i}`} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-6 animate-pulse">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-800" />
                   <div className="space-y-2">
@@ -479,7 +479,7 @@ export const FindWork: React.FC<FindWorkProps> = ({
                           <div className="flex items-center gap-2 overflow-x-auto pb-1">
                             {postImages.map((img, idx) => (
                               <button
-                                key={idx}
+                                key={`${post.id}-screenshot-${idx}`}
                                 type="button"
                                 onClick={() => handleOpenLightbox(postImages, idx, post.title)}
                                 className="relative w-16 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700 hover:border-brand-green transition-all shrink-0 cursor-pointer group shadow-xs"
@@ -513,7 +513,7 @@ export const FindWork: React.FC<FindWorkProps> = ({
                     <div className="flex flex-wrap gap-1.5 pt-2">
                       {post.skills.map((skill, idx) => (
                         <span
-                          key={idx}
+                          key={`${skill}-${idx}`}
                           className="px-2.5 py-1 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs font-medium"
                         >
                           {skill}
@@ -619,7 +619,7 @@ export const FindWork: React.FC<FindWorkProps> = ({
                           <div className="flex items-center gap-2 overflow-x-auto py-1">
                             {modalImages.map((img, idx) => (
                               <button
-                                key={idx}
+                                key={`modal-thumb-${selectedProject.id}-${idx}`}
                                 type="button"
                                 onClick={() => handleOpenLightbox(modalImages, idx, selectedProject.title)}
                                 className="relative w-20 h-14 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-slate-700 hover:border-brand-green transition-all shrink-0 cursor-pointer group shadow-xs"
@@ -682,7 +682,7 @@ export const FindWork: React.FC<FindWorkProps> = ({
                       <div className="flex flex-wrap gap-2">
                         {selectedProject.skills.map((skill, i) => (
                           <span
-                            key={i}
+                            key={`modal-skill-${skill}-${i}`}
                             className="px-2.5 py-1 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-medium"
                           >
                             {skill}

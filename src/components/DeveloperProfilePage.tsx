@@ -1064,7 +1064,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                       {/* Log Screen */}
                       <div className="h-44 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-zinc-800 pr-2">
                         {terminalLogs.map((log, index) => (
-                          <div key={index} className={log.startsWith('$') ? 'text-brand-gold' : log.includes('[OK]') || log.includes('[SUCCESS]') ? 'text-emerald-400' : 'text-gray-400'}>
+                          <div key={`term-log-${index}`} className={log.startsWith('$') ? 'text-brand-gold' : log.includes('[OK]') || log.includes('[SUCCESS]') ? 'text-emerald-400' : 'text-gray-400'}>
                             {log}
                           </div>
                         ))}
@@ -1412,7 +1412,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                           <span className="text-gray-500 text-[10px] uppercase font-mono font-bold block mb-2">Aesthetic Palette Swatches</span>
                           <div className="flex gap-2">
                             {creativeAssets[selectedAsset].colors.map((col, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5 bg-white/5 px-2 py-1.5 rounded-lg border border-white/5">
+                              <div key={`${selectedAsset}-color-${col}-${idx}`} className="flex items-center gap-1.5 bg-white/5 px-2 py-1.5 rounded-lg border border-white/5">
                                 <span className="w-3.5 h-3.5 rounded" style={{ backgroundColor: col }} />
                                 <span className="text-[10px] font-mono">{col}</span>
                               </div>
@@ -1482,7 +1482,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                           <p className="text-gray-500"># Pipeline agent ready. Trigger deployment to scan commits...</p>
                         )}
                         {pipelineLogs.map((log, index) => (
-                          <div key={index} className={log.startsWith('🎉') || log.includes('[DEPLOY]') ? 'text-cyan-400' : log.includes('passed') || log.includes('green') ? 'text-emerald-400' : 'text-gray-400'}>
+                          <div key={`pipeline-log-${index}`} className={log.startsWith('🎉') || log.includes('[DEPLOY]') ? 'text-cyan-400' : log.includes('passed') || log.includes('green') ? 'text-emerald-400' : 'text-gray-400'}>
                             {log}
                           </div>
                         ))}
@@ -1691,7 +1691,7 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                     <div className="space-y-2.5">
                       {templates.map((tpl, i) => (
                         <button
-                          key={i}
+                          key={`template-${tpl.label}-${i}`}
                           type="button"
                           onClick={() => setMessage(tpl.text)}
                           className="w-full text-left p-3 rounded-xl border border-brand-border hover:border-brand-green bg-brand-warm-white hover:bg-white text-xs font-semibold text-gray-700 transition-all cursor-pointer shadow-sm"
