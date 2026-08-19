@@ -25,9 +25,9 @@ export const Testimonials: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((testimonial) => (
+          {TESTIMONIALS.map((testimonial, idx) => (
             <div
-              key={testimonial.id}
+              key={testimonial.id ? `${testimonial.id}-${idx}` : idx}
               className="relative bg-white/70 dark:bg-[#0B1311]/70 backdrop-blur-md rounded-[24px] p-8 md:p-10 border border-brand-border/60 dark:border-white/10 shadow-premium flex flex-col justify-between hover:shadow-premium-hover hover:border-brand-green/20 transition-all duration-300"
             >
               {/* Decorative Quote Icon */}

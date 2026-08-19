@@ -12,15 +12,22 @@ import { TrackPage } from './components/TrackPage';
 import { 
   HireDeveloperModal, 
   JoinSureDevModal, 
-  LoginModal 
+  LoginModal,
+  ResetPasswordModal 
 } from './components/Modals';
 import { Developer, Employer, UserSession, CollabRequest } from './types';
 import { DEVELOPERS as initialDevelopers, EMPLOYERS as initialEmployers } from './data';
 import { dbService } from './lib/firebaseService';
-import { auth, firebaseSignOut, onAuthStateChanged } from './lib/firebase';
+import { auth, firebaseSignOut, applyActionCode } from './lib/firebase';
 import { notificationService } from './services/notificationService';
 import { EmailPreferencesModal } from './components/EmailPreferencesModal';
 import { AdminEmailPanel } from './components/AdminEmailPanel';
+
+// Account Separation & Global Auth Context Imports
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { GoogleRoleSelectorModal } from './components/GoogleRoleSelectorModal';
+import { AuthMismatchModal } from './components/AuthMismatchModal';
+import { MigrationReportModal } from './components/MigrationReportModal';
 
 // Full Stack Session Role Components
 import { DeveloperDashboard } from './components/DeveloperDashboard';
@@ -28,13 +35,18 @@ import { EmployerDashboard } from './components/EmployerDashboard';
 import { DeveloperDirectoryEmployer } from './components/DeveloperDirectoryEmployer';
 import { EmployerDirectoryDeveloper } from './components/EmployerDirectoryDeveloper';
 import { SureDevAIAssistant } from './components/SureDevAIAssistant';
+import { PostProject } from './components/PostProject';
+import { FindWork } from './components/FindWork';
 
-export default function App() {
+function MainApp() {
+  const { firebaseUser, userDoc, role, developerProfile, employerProfile, logout, refreshAuth, loading: authLoading } = useAuth();
+
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isHireOpen, setIsHireOpen] = useState(false);
   const [isEmailPrefsOpen, setIsEmailPrefsOpen] = useState(false);
   const [isAdminEmailOpen, setIsAdminEmailOpen] = useState(false);
+  const [isMigrationAuditOpen, setIsMigrationAuditOpen] = useState(false);
   
   // Theme Toggle State
   const [darkMode, setDarkMode] = useState(() => {
@@ -66,122 +78,133 @@ export default function App() {
   const [employers, setEmployers] = useState<Employer[]>([]);
   const [collabRequests, setCollabRequests] = useState<CollabRequest[]>([]);
 
-  // Subscribe to real-time Cloud Firestore updates (or localStorage fallbacks)
+  // Subscribe to real-time Cloud Firestore updates
   useEffect(() => {
     const unsub = dbService.subscribeDevelopers((liveDevs) => {
-      setDevelopers(liveDevs || []);
+      const list = liveDevs || [];
+      const uniqueDevs = Array.from(new Map(list.map((d, i) => [d.id || `dev-${i}`, d])).values());
+      setDevelopers(uniqueDevs);
     });
     return unsub;
   }, []);
 
   useEffect(() => {
     const unsub = dbService.subscribeEmployers((liveEmps) => {
-      setEmployers(liveEmps || []);
+      const list = liveEmps || [];
+      const uniqueEmps = Array.from(new Map(list.map((e, i) => [e.id || `emp-${i}`, e])).values());
+      setEmployers(uniqueEmps);
     });
     return unsub;
   }, []);
 
   useEffect(() => {
     const unsub = dbService.subscribeCollaborationRequests((liveReqs) => {
-      setCollabRequests(liveReqs);
+      const list = liveReqs || [];
+      const uniqueReqs = Array.from(new Map(list.map((r, i) => [r.id || `req-${i}`, r])).values());
+      setCollabRequests(uniqueReqs);
     });
     return unsub;
   }, []);
 
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'directory'>('landing');
-
-  // Sync session and view from Firebase Authentication State changes
-  useEffect(() => {
-    if (!auth) {
-      setLoadingAuth(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const email = firebaseUser.email || '';
-        const uid = firebaseUser.uid;
-
-        // If a manual signup/registration flow is in progress, do not auto-create
-        // a default profile here. Let the JoinSureDevModal finish the setup.
-        if (localStorage.getItem('suredev_registering') === 'true') {
-          setLoadingAuth(false);
-          return;
-        }
-
-        try {
-          const userDoc = await dbService.getUserDoc(uid);
-          
-          if (userDoc && userDoc.accountType) {
-            const accountType = userDoc.accountType as 'developer' | 'employer';
-            
-            let devId: string | undefined;
-            let empId: string | undefined;
-            let photoUrl = userDoc.profileImageUrl || userDoc.photoURL || firebaseUser.photoURL || undefined;
-            let hasCustom = userDoc.hasCustomProfileImage || Boolean(photoUrl && !photoUrl.includes('unsplash.com'));
-
-            if (accountType === 'developer') {
-              const profile = await dbService.getDeveloperProfile(uid);
-              if (profile) {
-                devId = uid;
-                photoUrl = profile.profileImageUrl || profile.avatar || photoUrl;
-                hasCustom = profile.hasCustomProfileImage || hasCustom;
-              } else {
-                await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
-                devId = uid;
-              }
-            } else {
-              const profile = await dbService.getEmployerProfile(uid);
-              if (profile) {
-                empId = uid;
-                photoUrl = profile.profileImageUrl || profile.companyLogo || photoUrl;
-                hasCustom = profile.hasCustomProfileImage || hasCustom;
-              } else {
-                await dbService.createDefaultEmployerProfile(uid, email, firebaseUser.displayName || '');
-                empId = uid;
-              }
-            }
-
-            setUserSession({
-              email,
-              accountType,
-              isOnboarded: true,
-              developerProfileId: devId,
-              employerProfileId: empId,
-              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com'),
-              profileImageUrl: photoUrl,
-              hasCustomProfileImage: hasCustom
-            });
-            setActiveView('dashboard');
-          } else {
-            // New user, default to developer profile so they are immediately onboarded
-            const devProfile = await dbService.createDefaultDeveloperProfile(uid, email, firebaseUser.displayName || '');
-            const photoUrl = devProfile.profileImageUrl || devProfile.avatar || firebaseUser.photoURL || undefined;
-            
-            setUserSession({
-              email,
-              accountType: 'developer',
-              isOnboarded: true,
-              developerProfileId: uid,
-              isGoogleUser: firebaseUser.providerData.some(p => p.providerId === 'google.com'),
-              profileImageUrl: photoUrl,
-              hasCustomProfileImage: devProfile.hasCustomProfileImage
-            });
-            setActiveView('dashboard');
-          }
-        } catch (error) {
-          console.error("Error fetching/creating user profile on auth change:", error);
-        }
-      } else {
-        setUserSession(null);
-        setActiveView('landing');
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'directory' | 'post-project' | 'find-work'>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname === '/find-work') {
+        return 'find-work';
       }
-      setLoadingAuth(false);
-    });
+      if (window.location.pathname === '/post-project') {
+        return 'post-project';
+      }
+    }
+    return 'landing';
+  });
+  const [isChatWorkspaceOpen, setIsChatWorkspaceOpen] = useState(false);
 
-    return () => unsubscribe();
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === '/find-work') {
+        setActiveView('find-work');
+      } else if (window.location.pathname === '/post-project') {
+        setActiveView('post-project');
+      } else if (activeView === 'post-project' || activeView === 'find-work') {
+        setActiveView('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeView]);
+
+  const handleNavigateToFindWork = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/find-work');
+    }
+    setActiveView('find-work');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateToPostProject = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/post-project');
+    }
+    setActiveView('post-project');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateFromPostProject = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/');
+    }
+    setActiveView('dashboard');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Derive Single Source of Truth User Session from AuthContext
+  const userSession: UserSession | null = (role && userDoc) ? {
+    email: userDoc.email,
+    accountType: role,
+    isOnboarded: true,
+    developerProfileId: role === 'developer' ? userDoc.uid : undefined,
+    employerProfileId: role === 'employer' ? userDoc.uid : undefined,
+    isGoogleUser: firebaseUser?.providerData.some(p => p.providerId === 'google.com'),
+    profileImageUrl: (role === 'developer' ? developerProfile?.profileImageUrl || developerProfile?.avatar : employerProfile?.profileImageUrl || employerProfile?.companyLogo) || userDoc.profileImageUrl || userDoc.photoURL || undefined,
+    hasCustomProfileImage: true
+  } : null;
+
+  // Auto-switch to dashboard view when user logs in with an assigned role
+  useEffect(() => {
+    if (userSession && activeView === 'landing') {
+      setActiveView('dashboard');
+    }
+  }, [userSession?.email, userSession?.accountType]);
+
+  // Password reset authorization state from URL oobCode
+  const [resetCode, setResetCode] = useState<string | null>(null);
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oobCode = params.get('oobCode');
+    const mode = params.get('mode');
+
+    if (oobCode) {
+      if (mode === 'resetPassword' || (!mode && params.get('apiKey'))) {
+        setResetCode(oobCode);
+        setIsResetPasswordOpen(true);
+      } else if (mode === 'verifyEmail' || mode === 'signIn') {
+        if (auth) {
+          applyActionCode(auth, oobCode)
+            .then(() => {
+              alert("✅ Email verified successfully! You can now log in to your SureDev account.");
+              window.history.replaceState({}, document.title, window.location.pathname);
+              setIsLoginOpen(true);
+            })
+            .catch((err) => {
+              console.error("Failed to verify email code:", err);
+              alert("This email verification link has expired or has already been used. Please log in or request a new link.");
+              window.history.replaceState({}, document.title, window.location.pathname);
+            });
+        }
+      }
+    }
   }, []);
 
   const handleSendCollabRequest = (senderId: string, receiverId: string, message?: string) => {
@@ -269,7 +292,7 @@ export default function App() {
 
   // Handle Dynamic Registration / Setup Finish Callback
   const handleJoinSuccess = (formData: any, accountType: 'developer' | 'employer') => {
-    const profileId = formData.id || (accountType === 'developer' ? `dev-${Date.now()}` : `emp-${Date.now()}`);
+    const profileId = firebaseUser?.uid || formData.id || (accountType === 'developer' ? `dev-${Date.now()}` : `emp-${Date.now()}`);
     if (accountType === 'developer') {
       const newDev: Developer = {
         id: profileId,
@@ -288,6 +311,7 @@ export default function App() {
         featured: false,
         projects: [],
         email: formData.email,
+        gender: formData.gender || 'Male',
         coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200&h=400',
         currentWorkplace: 'Independent Consultant',
         phone: '',
@@ -296,13 +320,7 @@ export default function App() {
       };
       setDevelopers(prev => [newDev, ...prev]);
       dbService.saveDeveloperProfile(profileId, newDev, profileId);
-      setUserSession({
-        email: formData.email,
-        accountType: 'developer',
-        isOnboarded: true,
-        developerProfileId: profileId,
-        isGoogleUser: formData.isGoogleUser
-      });
+      refreshAuth();
       setActiveView('dashboard');
     } else {
       const newEmp: Employer = {
@@ -314,6 +332,7 @@ export default function App() {
         website: formData.website || 'https://cooperative.ng',
         phone: formData.phone || '',
         email: formData.email,
+        gender: formData.gender || 'Male',
         location: formData.location || 'Aba',
         industry: formData.industry || 'E-commerce & Retail',
         desiredSkills: formData.desiredSkills ? formData.desiredSkills.split(',').map((s: string) => s.trim()).filter(Boolean) : ['React', 'TypeScript', 'Tailwind CSS'],
@@ -323,13 +342,7 @@ export default function App() {
       };
       setEmployers(prev => [newEmp, ...prev]);
       dbService.saveEmployerProfile(profileId, newEmp, profileId);
-      setUserSession({
-        email: formData.email,
-        accountType: 'employer',
-        isOnboarded: true,
-        employerProfileId: profileId,
-        isGoogleUser: formData.isGoogleUser
-      });
+      refreshAuth();
       setActiveView('dashboard');
     }
 
@@ -354,109 +367,34 @@ export default function App() {
   // Handle Login Authentication
   const handleLoginSuccess = (
     email: string, 
-    accountType: 'developer' | 'employer', 
+    accountType?: 'developer' | 'employer', 
     isGoogleUser?: boolean,
     displayName?: string,
     avatar?: string
   ) => {
-    const existingDev = developers.find(d => d.email?.toLowerCase() === email.toLowerCase());
-    const existingEmp = employers.find(e => e.email?.toLowerCase() === email.toLowerCase());
-
-    let devId = existingDev?.id;
-    let empId = existingEmp?.id;
-
-    if (accountType === 'developer') {
-      if (!existingDev) {
-        // Create a developer profile using Google info so they don't get mock data
-        const newDev: Developer = {
-          id: `dev-${Date.now()}`,
-          name: displayName || email.split('@')[0],
-          title: 'Software Developer',
-          avatar: avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200',
-          location: 'Aba',
-          experience: 3,
-          skills: ['React', 'TypeScript', 'Tailwind CSS'],
-          availability: 'immediate',
-          bio: `Vetted Developer dedicated to crafting highly performant applications and customized localized solutions based in Aba, Abia State.`,
-          githubUrl: 'https://github.com',
-          linkedinUrl: 'https://linkedin.com',
-          twitterUrl: 'https://twitter.com',
-          portfolioUrl: 'https://portfolio.ng',
-          featured: false,
-          projects: [],
-          email: email,
-          coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200&h=400',
-          currentWorkplace: 'Independent Consultant',
-          phone: '',
-          workExperience: [],
-          qualification: 'Self-Taught Industry Specialist'
-        };
-        setDevelopers(prev => [newDev, ...prev]);
-        dbService.saveDeveloperProfile(newDev.id, newDev, newDev.id);
-        devId = newDev.id;
-      }
-    }
-
-    if (accountType === 'employer') {
-      if (!existingEmp) {
-        // Create an employer profile using Google info
-        const newEmp: Employer = {
-          id: `emp-${Date.now()}`,
-          companyName: displayName ? `${displayName}'s Company` : `${email.split('@')[0]}'s Venture`,
-          companyLogo: avatar || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=200&h=200',
-          contactPerson: displayName || email.split('@')[0],
-          description: `Leading local brand based in Aba, Abia State.`,
-          website: 'https://cooperative.ng',
-          phone: '',
-          email: email,
-          location: 'Aba',
-          industry: 'E-commerce & Retail',
-          desiredSkills: ['React', 'TypeScript', 'Tailwind CSS'],
-          hiringCategories: [],
-          hiringTypes: ['Full-time'],
-          targetQualifications: 'Vetted Coding Bootcamp Graduate'
-        };
-        setEmployers(prev => [newEmp, ...prev]);
-        dbService.saveEmployerProfile(newEmp.id, newEmp, newEmp.id);
-        empId = newEmp.id;
-      }
-    }
-
-    setUserSession({
-      email,
-      accountType,
-      isOnboarded: true,
-      developerProfileId: accountType === 'developer' ? devId : undefined,
-      employerProfileId: accountType === 'employer' ? empId : undefined,
-      isGoogleUser: isGoogleUser
-    });
+    refreshAuth();
     setActiveView('dashboard');
+    setIsLoginOpen(false);
 
     // Trigger Security Login Alert
-    notificationService.triggerSecurityAlert(
-      devId || empId || 'user',
-      email,
-      'Chrome on Windows (Aba, Abia State)'
-    );
+    if (email) {
+      notificationService.triggerSecurityAlert(
+        email,
+        email,
+        'Secure Browser Session (Abia State, NG)'
+      );
+    }
   };
-
 
   // Handle Logout Action
   const handleLogout = async () => {
-    if (auth) {
-      try {
-        await firebaseSignOut(auth);
-      } catch (err) {
-        console.error("Firebase sign out failed:", err);
-      }
-    }
-    setUserSession(null);
+    await logout();
     setActiveView('landing');
     setActiveProfile(null);
     setActiveTrackPage(null);
   };
 
-  if (loadingAuth) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-brand-warm-white flex items-center justify-center">
         <div className="flex flex-col items-center">
@@ -470,47 +408,66 @@ export default function App() {
     );
   }
 
-  // Check if current user session is an admin
+  // Check if current user session is an admin (Strictly restricted to chigozieorji43@gmail.com)
   const isAdminUser = Boolean(
-    userSession && (
-      userSession.isAdmin ||
-      userSession.email.toLowerCase().includes('admin') ||
-      userSession.email.toLowerCase().endsWith('@suredev.ng') ||
-      userSession.email.toLowerCase() === 'chigozieorji43@gmail.com'
-    )
+    userSession && userSession.email.toLowerCase().trim() === 'chigozieorji43@gmail.com'
   );
 
   return (
     <div className="relative min-h-screen bg-brand-warm-white selection:bg-brand-green/20 selection:text-brand-midnight">
       
       {/* 1. Global Navigation Bar */}
-      <Navbar 
-        userSession={userSession}
-        activeView={activeView}
-        onViewChange={(view) => {
-          setActiveProfile(null);
-          setActiveTrackPage(null);
-          setActiveView(view);
-          window.scrollTo({ top: 0, behavior: 'instant' });
-        }}
-        onLoginClick={() => setIsLoginOpen(true)}
-        onJoinClick={() => setIsJoinOpen(true)}
-        onLogoutClick={handleLogout}
-        onSectionScroll={(sectionId) => {
-          setActiveProfile(null);
-          setActiveTrackPage(null);
-          setActiveView('landing');
-          setTimeout(() => handleSectionScroll(sectionId), 150);
-        }}
-        darkMode={darkMode}
-        onToggleDarkMode={() => setDarkMode(!darkMode)}
-        onOpenEmailPrefs={() => setIsEmailPrefsOpen(true)}
-        onOpenAdminEmail={isAdminUser ? () => setIsAdminEmailOpen(true) : undefined}
-        currentUserId={userSession?.developerProfileId || userSession?.employerProfileId}
-      />
+      {!isChatWorkspaceOpen && (
+        <Navbar 
+          userSession={userSession}
+          activeView={activeView}
+          onViewChange={(view) => {
+            setActiveProfile(null);
+            setActiveTrackPage(null);
+            setActiveView(view);
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }}
+          onLoginClick={() => setIsLoginOpen(true)}
+          onJoinClick={() => setIsJoinOpen(true)}
+          onLogoutClick={() => {
+            logout();
+            setActiveView('landing');
+          }}
+          onSectionScroll={(sectionId) => {
+            setActiveProfile(null);
+            setActiveTrackPage(null);
+            setActiveView('landing');
+            setTimeout(() => handleSectionScroll(sectionId), 150);
+          }}
+          darkMode={darkMode}
+          onToggleDarkMode={() => setDarkMode(!darkMode)}
+          onOpenEmailPrefs={() => setIsEmailPrefsOpen(true)}
+          onOpenAdminEmail={isAdminUser ? () => setIsAdminEmailOpen(true) : undefined}
+          onOpenMigrationAudit={isAdminUser ? () => setIsMigrationAuditOpen(true) : undefined}
+          onNavigateToPostProject={handleNavigateToPostProject}
+          currentUserId={userSession?.developerProfileId || userSession?.employerProfileId}
+        />
+      )}
 
       {/* RENDER SEQUENCE MATRIX */}
-      {activeProfile ? (
+      {activeView === 'find-work' ? (
+        <FindWork 
+          userSession={userSession}
+          onNavigateToPostProject={handleNavigateToPostProject}
+          onNavigateToEmployers={() => {
+            setActiveView('directory');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/');
+            }
+          }}
+        />
+      ) : activeView === 'post-project' ? (
+        <PostProject 
+          onNavigateDashboard={handleNavigateFromPostProject}
+          onNavigateToProjects={handleNavigateFromPostProject}
+          onOpenLoginModal={() => setIsLoginOpen(true)}
+        />
+      ) : activeProfile ? (
         <DeveloperProfilePage 
           developer={activeProfile}
           onBack={() => {
@@ -561,13 +518,15 @@ export default function App() {
             <DeveloperDashboard 
               developer={dev}
               onUpdateDeveloper={(updated) => {
-                setDevelopers(prev => prev.map(d => d.id === updated.id ? updated : d));
+                setDevelopers(prev => {
+                  const exists = prev.some(d => d.id === updated.id);
+                  if (exists) {
+                    return prev.map(d => d.id === updated.id ? updated : d);
+                  }
+                  return [updated, ...prev];
+                });
                 dbService.saveDeveloperProfile(updated.id, updated, updated.id);
-                setUserSession(prev => prev ? {
-                  ...prev,
-                  profileImageUrl: updated.profileImageUrl || updated.avatar,
-                  hasCustomProfileImage: updated.hasCustomProfileImage || Boolean(updated.avatar && !updated.avatar.includes('unsplash.com'))
-                } : null);
+                refreshAuth();
               }}
               onPreviewProfile={() => {
                 setActiveProfile(dev);
@@ -579,6 +538,7 @@ export default function App() {
               onCancelCollabRequest={handleCancelCollabRequest}
               isGoogleUser={userSession.isGoogleUser}
               onConnectGoogle={handleDashboardConnectGoogle}
+              onTabChange={(tab) => setIsChatWorkspaceOpen(tab === 'chat')}
             />
           );
         })() : (() => {
@@ -602,13 +562,15 @@ export default function App() {
             <EmployerDashboard 
               employer={emp}
               onUpdateEmployer={(updated) => {
-                setEmployers(prev => prev.map(e => e.id === updated.id ? updated : e));
+                setEmployers(prev => {
+                  const exists = prev.some(e => e.id === updated.id);
+                  if (exists) {
+                    return prev.map(e => e.id === updated.id ? updated : e);
+                  }
+                  return [updated, ...prev];
+                });
                 dbService.saveEmployerProfile(updated.id, updated, updated.id);
-                setUserSession(prev => prev ? {
-                  ...prev,
-                  profileImageUrl: updated.profileImageUrl || updated.companyLogo,
-                  hasCustomProfileImage: updated.hasCustomProfileImage || Boolean(updated.companyLogo && !updated.companyLogo.includes('unsplash.com'))
-                } : null);
+                refreshAuth();
               }}
               onPreviewProfile={() => {
                 // Toggle directory view to preview active hires
@@ -616,6 +578,8 @@ export default function App() {
               }}
               isGoogleUser={userSession.isGoogleUser}
               onConnectGoogle={handleDashboardConnectGoogle}
+              onTabChange={(tab) => setIsChatWorkspaceOpen(tab === 'chat')}
+              onNavigateToPostProject={handleNavigateToPostProject}
             />
           );
         })()
@@ -679,18 +643,20 @@ export default function App() {
       )}
 
       {/* 9. Premium Midnight Footer */}
-      <Footer 
-        onSectionScroll={(sectionId) => {
-          setActiveProfile(null);
-          setActiveTrackPage(null);
-          setActiveView('landing');
-          setTimeout(() => handleSectionScroll(sectionId), 150);
-        }}
-      />
+      {!isChatWorkspaceOpen && (
+        <Footer 
+          onSectionScroll={(sectionId) => {
+            setActiveProfile(null);
+            setActiveTrackPage(null);
+            setActiveView('landing');
+            setTimeout(() => handleSectionScroll(sectionId), 150);
+          }}
+        />
+      )}
 
       {/* --- ALL OVERLAY MODALS --- */}
 
-      {/* Client Direct Hiring Modal */}
+      {/* Client Direct Hiring / Create Project Modal */}
       <HireDeveloperModal 
         isOpen={isHireOpen}
         onClose={() => {
@@ -698,6 +664,8 @@ export default function App() {
           setSelectedDeveloper(null);
         }}
         developer={selectedDeveloper}
+        currentUserSession={userSession}
+        employerProfile={employers.find(e => e.id === userSession?.employerProfileId) || null}
       />
 
       {/* Developer Registry Sign up flow */}
@@ -756,7 +724,38 @@ export default function App() {
       {/* Floating AI Assistant Widget */}
       <SureDevAIAssistant />
 
+      {/* Password Reset Modal when opening reset link */}
+      {isResetPasswordOpen && resetCode && (
+        <ResetPasswordModal
+          isOpen={isResetPasswordOpen}
+          onClose={() => {
+            setIsResetPasswordOpen(false);
+            setResetCode(null);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }}
+          oobCode={resetCode}
+        />
+      )}
+
+      {/* Account Separation Modals */}
+      <GoogleRoleSelectorModal />
+      <AuthMismatchModal onSwitchPortal={() => setActiveView('dashboard')} />
+      {isAdminUser && (
+        <MigrationReportModal 
+          isOpen={isMigrationAuditOpen} 
+          onClose={() => setIsMigrationAuditOpen(false)} 
+        />
+      )}
+
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 

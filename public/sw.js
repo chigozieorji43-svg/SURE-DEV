@@ -38,14 +38,21 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Bypass Firebase SDK / Auth and Web Sockets / HMR
+  // Bypass Firebase SDK / Auth, Web Sockets / HMR, and JS/TS/Vite development modules
   if (
     url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.jsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
     url.origin.includes('firestore.googleapis.com') ||
     url.origin.includes('identitytoolkit.googleapis.com') ||
     url.origin.includes('firebaseapp.com') ||
     url.origin.includes('googleapis.com') ||
-    url.origin.includes('localhost') && url.port === '3000' && url.pathname.includes('vite') ||
+    (url.origin.includes('localhost') && url.port === '3000' && url.pathname.includes('vite')) ||
     event.request.url.includes('socket.io') ||
     event.request.url.includes('ws')
   ) {

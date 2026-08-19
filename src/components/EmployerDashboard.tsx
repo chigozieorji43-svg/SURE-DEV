@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Building2, User, Globe, Mail, Phone, MapPin, Briefcase, Plus, Check, Upload, Sparkles, Code, Layout, Clock, Settings, Key,
-  RefreshCw, AlertCircle, CheckCircle
+  RefreshCw, AlertCircle, CheckCircle, Camera, Image as ImageIcon, ArrowLeft
 } from 'lucide-react';
 import { Employer } from '../types';
-import { GoogleInbox } from './GoogleInbox';
 import { uploadFileToStorage, uploadProfileImage } from '../lib/firebaseService';
 import { UserAvatar } from './UserAvatar';
+import { DashboardProjectsModule } from './DashboardProjectsModule';
+import { RealtimeChat } from './workspace/RealtimeChat';
+import { EmployerApplicationsView } from './EmployerApplicationsView';
 
 interface EmployerDashboardProps {
   employer: Employer;
@@ -15,6 +17,8 @@ interface EmployerDashboardProps {
   onPreviewProfile: () => void;
   isGoogleUser?: boolean;
   onConnectGoogle?: () => void;
+  onTabChange?: (tab: string) => void;
+  onNavigateToPostProject?: () => void;
 }
 
 export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
@@ -23,14 +27,31 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
   onPreviewProfile,
   isGoogleUser,
   onConnectGoogle,
+  onTabChange,
+  onNavigateToPostProject,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'gmail' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<
+    'profile' | 'managedProjects' | 'applications' | 'reviews' | 'preferences' | 'chat'
+  >('profile');
+  const [previousTab, setPreviousTab] = useState<
+    'profile' | 'managedProjects' | 'applications' | 'reviews' | 'preferences'
+  >('profile');
   const [isSaved, setIsSaved] = useState(false);
+  const [selectedChatProject, setSelectedChatProject] = useState<any>(null);
+
+  const handleTabChange = (newTab: 'profile' | 'managedProjects' | 'applications' | 'reviews' | 'preferences' | 'chat') => {
+    if (activeTab !== 'chat' && newTab === 'chat') {
+      setPreviousTab(activeTab as 'profile' | 'managedProjects' | 'applications' | 'reviews' | 'preferences');
+    }
+    setActiveTab(newTab);
+    onTabChange?.(newTab);
+  };
 
   // Corporate Profile Fields
   const emp = employer || {} as Partial<Employer>;
   const [companyName, setCompanyName] = useState(emp.companyName || '');
   const [contactPerson, setContactPerson] = useState(emp.contactPerson || '');
+  const [gender, setGender] = useState(emp.gender || 'Male');
   const [description, setDescription] = useState(emp.description || '');
   const [website, setWebsite] = useState(emp.website || '');
   const [phone, setPhone] = useState(emp.phone || '');
@@ -45,16 +66,45 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
   const [hiringTypes, setHiringTypes] = useState<string[]>(emp.hiringTypes || ['Full-time', 'Remote']);
   const [targetQualifications, setTargetQualifications] = useState(emp.targetQualifications || 'Any (Open to all vetted talent)');
 
-  // Logo Mock State
+  // Logo and Cover States
   const [companyLogo, setCompanyLogo] = useState(emp.companyLogo || '');
+  const [coverPhoto, setCoverPhoto] = useState(emp.coverPhoto || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1200&h=400');
+  
   const [isUploading, setIsUploading] = useState(false);
   const [logoProgress, setLogoProgress] = useState<number | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoSuccess, setLogoSuccess] = useState<boolean>(false);
 
+  const [isCoverUploading, setIsCoverUploading] = useState(false);
+  const [coverProgress, setCoverProgress] = useState<number | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [coverSuccess, setCoverSuccess] = useState<boolean>(false);
+
   // Security
   const [password, setPassword] = useState('••••••••');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Sync local state whenever employer prop changes
+  React.useEffect(() => {
+    if (employer) {
+      if (employer.companyName) setCompanyName(employer.companyName);
+      if (employer.contactPerson) setContactPerson(employer.contactPerson);
+      if (employer.gender) setGender(employer.gender);
+      if (employer.description !== undefined) setDescription(employer.description);
+      if (employer.website !== undefined) setWebsite(employer.website);
+      if (employer.phone !== undefined) setPhone(employer.phone);
+      if (employer.email !== undefined) setEmail(employer.email);
+      if (employer.location) setLocation(employer.location);
+      if (employer.industry) setIndustry(employer.industry);
+      if (employer.desiredSkills) setDesiredSkills(employer.desiredSkills);
+      if (employer.hiringCategories) setHiringCategories(employer.hiringCategories);
+      if (employer.hiringTypes) setHiringTypes(employer.hiringTypes);
+      if (employer.targetQualifications) setTargetQualifications(employer.targetQualifications);
+      if (employer.profileImageUrl || employer.companyLogo) {
+        setCompanyLogo(employer.profileImageUrl || employer.companyLogo);
+      }
+    }
+  }, [employer.id, employer.profileImageUrl, employer.companyLogo, employer.updatedAt, employer.gender]);
 
   const handleSaveCorporate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +113,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
       ...employer,
       companyName,
       contactPerson,
+      gender,
       description,
       website,
       phone,
@@ -76,6 +127,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
       profileImageUrl: companyLogo,
       hasCustomProfileImage: isCustom,
       targetQualifications,
+      updatedAt: new Date().toISOString()
     };
     onUpdateEmployer(updatedEmp);
     setIsSaved(true);
@@ -176,15 +228,149 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
     }
   };
 
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        setCoverError('Only JPG, JPEG, PNG, and WebP images are allowed.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setCoverError('Cover image size exceeds 10MB limit.');
+        return;
+      }
+
+      setCoverError(null);
+      setCoverSuccess(false);
+      setCoverProgress(0);
+      setIsCoverUploading(true);
+
+      try {
+        const uploadUrl = await uploadFileToStorage(file, 'covers', coverPhoto, (progress) => {
+          setCoverProgress(progress);
+        });
+
+        setCoverPhoto(uploadUrl);
+        setCoverSuccess(true);
+        setCoverProgress(null);
+
+        const updatedEmp: Employer = {
+          ...employer,
+          coverPhoto: uploadUrl,
+          companyName,
+          contactPerson,
+          description,
+          website,
+          phone,
+          email,
+          location,
+          industry,
+          desiredSkills,
+          hiringCategories,
+          hiringTypes,
+          companyLogo,
+          profileImageUrl: companyLogo,
+          hasCustomProfileImage: true,
+          targetQualifications,
+        };
+        onUpdateEmployer(updatedEmp);
+        setTimeout(() => setCoverSuccess(false), 4000);
+      } catch (err: any) {
+        console.error("Storage upload failed, falling back to base64:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          setCoverPhoto(base64);
+          setCoverSuccess(true);
+          setCoverProgress(null);
+          const updatedEmp: Employer = {
+            ...employer,
+            coverPhoto: base64,
+            companyName,
+            contactPerson,
+            description,
+            website,
+            phone,
+            email,
+            location,
+            industry,
+            desiredSkills,
+            hiringCategories,
+            hiringTypes,
+            companyLogo,
+            profileImageUrl: companyLogo,
+            hasCustomProfileImage: true,
+            targetQualifications,
+          };
+          onUpdateEmployer(updatedEmp);
+          setTimeout(() => setCoverSuccess(false), 4000);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsCoverUploading(false);
+      }
+    }
+  };
+
   const availableHiringTypes = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote', 'Hybrid'];
   const availableCategories = ['CAD/CAM', 'Backend', 'Full Stack', 'UI/UX Design', 'Creative Arts', 'Cloud & DevOps', 'AI & Data Science', 'Cybersecurity'];
 
+  if (activeTab === 'chat') {
+    return (
+      <div className="pt-0 pb-0 px-0 w-full max-w-none h-screen flex flex-col min-h-0 bg-white dark:bg-slate-900 overflow-hidden">
+        {/* Full-Screen Chat Interface Wrapper */}
+        <div className="flex-1 w-full min-h-0 relative flex flex-col">
+          <RealtimeChat
+            projectId={selectedChatProject?.id || employer.projects?.[0]?.id || 'default_chat_room'}
+            projectTitle={selectedChatProject?.title || employer.projects?.[0]?.title || 'Workspace Chat'}
+            project={selectedChatProject || employer.projects?.[0] || undefined}
+            userId={employer.id}
+            userName={employer.companyName}
+            userRole="employer"
+            onSelectProject={(proj) => setSelectedChatProject(proj)}
+            onBack={() => handleTabChange(previousTab || 'profile')}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="pt-24 pb-16 px-6 md:px-12 max-w-7xl mx-auto">
+    <div className="pt-24 pb-16 px-4 md:px-8 mx-auto transition-all max-w-7xl">
       
-      {/* corporate Branding Header Block */}
-      <div className="relative rounded-3xl overflow-hidden border border-brand-border bg-white shadow-premium mb-8 p-6 md:p-8">
-        <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
+      {/* Corporate Branding Header Block */}
+      <div className="relative rounded-3xl overflow-hidden border border-brand-border bg-white shadow-premium mb-8">
+        {/* Cover Photo Banner */}
+        <div className="h-44 md:h-56 relative bg-brand-midnight group">
+          <img 
+            src={coverPhoto} 
+            alt="Corporate Cover" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/35 group-hover:bg-black/45 transition-colors" />
+
+          {/* Change Cover Photo button */}
+          <label className="absolute top-4 right-4 z-20 px-3.5 py-2 rounded-xl bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all border border-white/20 shadow-lg">
+            <Camera size={15} className="text-brand-green" />
+            <span>Change Cover Banner</span>
+            <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleCoverChange} className="hidden" />
+          </label>
+
+          {/* Cover uploading progress overlay */}
+          {isCoverUploading && (
+            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white z-30">
+              <RefreshCw className="animate-spin text-brand-green mb-2" size={26} />
+              <p className="text-xs font-bold uppercase tracking-wider">Uploading Cover Banner...</p>
+              <span className="text-xs font-mono font-bold text-brand-green mt-1">
+                {coverProgress !== null ? `${coverProgress}%` : 'Processing...'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Corporate Profile Info Overlay */}
+        <div className="px-6 md:px-8 pb-8 pt-0 -mt-10 md:-mt-14 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="relative group">
               <UserAvatar 
@@ -192,21 +378,21 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                 email={email}
                 src={companyLogo} 
                 hasCustomProfileImage={employer.hasCustomProfileImage || Boolean(companyLogo && !companyLogo.includes('unsplash.com'))}
-                sizeClassName="w-20 h-20 md:w-24 md:h-24"
+                sizeClassName="w-20 h-20 md:w-28 md:h-28"
                 roundedClassName="rounded-2xl"
-                className="border border-brand-border shadow-sm bg-brand-warm-white text-2xl md:text-3xl font-bold"
+                className="border-4 border-white shadow-premium bg-brand-warm-white text-2xl md:text-4xl font-bold"
               />
               <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white text-center p-1">
-                <Upload size={14} className="mb-0.5" />
-                <span className="text-[8px] font-semibold uppercase tracking-wider">Change Logo</span>
+                <Upload size={16} className="mb-0.5" />
+                <span className="text-[9px] font-semibold uppercase tracking-wider">Change Logo</span>
                 <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleLogoChange} className="hidden" />
               </label>
 
               {/* Uploading progress overlay */}
               {isUploading && (
                 <div className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center text-white">
-                  <RefreshCw className="animate-spin text-brand-green mb-1" size={16} />
-                  <span className="text-[9px] font-mono font-bold">
+                  <RefreshCw className="animate-spin text-brand-green mb-1" size={18} />
+                  <span className="text-[10px] font-mono font-bold">
                     {logoProgress !== null ? `${logoProgress}%` : 'Compressing...'}
                   </span>
                 </div>
@@ -238,21 +424,34 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
               )}
 
               <p className="text-brand-green font-medium mt-0.5">{industry} Industry</p>
-              <p className="text-gray-400 text-xs mt-1 font-semibold uppercase tracking-wider flex items-center gap-1 justify-center md:justify-start">
-                <MapPin size={12} className="text-brand-green" />
-                HQ: {location}, Abia State
+              <p className="text-gray-400 text-xs mt-1 font-semibold uppercase tracking-wider flex flex-wrap items-center gap-3 justify-center md:justify-start">
+                <span className="flex items-center gap-1">
+                  <MapPin size={12} className="text-brand-green" />
+                  HQ: {location}, Abia State
+                </span>
+                <span className="flex items-center gap-1 border-l border-gray-200 pl-3">
+                  <Sparkles size={12} className={employer?.reviewCount && employer?.reviewCount > 0 && employer?.averageRating ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
+                  {employer?.reviewCount && employer?.reviewCount > 0 && employer?.averageRating ? (
+                    <span>Real-time Rating: <strong className="text-brand-midnight font-mono">{employer.averageRating.toFixed(1)}</strong> / 5.0 ({employer.reviewCount} {employer.reviewCount === 1 ? 'review' : 'reviews'})</span>
+                  ) : (
+                    <span className="text-gray-400 font-normal normal-case">Unrated (No reviews submitted yet)</span>
+                  )}
+                </span>
               </p>
             </div>
           </div>
 
-          <div className="flex gap-3 w-full md:w-auto justify-center">
-            <button
-              onClick={onPreviewProfile}
-              className="px-5 py-3 rounded-xl border border-brand-border text-gray-700 hover:bg-gray-50 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm"
-            >
-              <Building2 size={14} />
-              View Company Card
-            </button>
+          <div className="flex flex-wrap gap-3 w-full md:w-auto justify-center">
+            {onNavigateToPostProject && (
+              <button
+                type="button"
+                onClick={onNavigateToPostProject}
+                className="px-5 py-3 rounded-xl bg-brand-midnight hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+              >
+                <Plus size={14} className="text-brand-green" />
+                Post a Project
+              </button>
+            )}
             <button
               onClick={handleSaveCorporate}
               className="px-5 py-3 rounded-xl bg-brand-green hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
@@ -265,31 +464,203 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-brand-border/60 mb-8 overflow-x-auto scrollbar-hide">
-        {(['profile', 'preferences', 'gmail', 'security'] as const).map((tab) => (
+      <div className="flex items-center gap-2 sm:gap-6 lg:gap-8 border-b border-brand-border/60 mb-8 overflow-x-auto scrollbar-hide">
+        {(
+          [
+            'profile',
+            'managedProjects',
+            'applications',
+            'reviews',
+            'preferences',
+            'chat',
+          ] as const
+        ).map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            onClick={() => handleTabChange(tab)}
+            className={`px-3 sm:px-6 py-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === tab
                 ? 'border-brand-green text-brand-midnight font-extrabold'
                 : 'border-transparent text-gray-400 hover:text-brand-midnight'
             }`}
           >
-            {tab === 'profile' ? 'Company Profile' : tab === 'preferences' ? 'Hiring Directives' : tab === 'gmail' ? '📬 Google Inbox' : 'Account Config'}
+            {tab === 'profile'
+              ? 'Company Profile'
+              : tab === 'managedProjects'
+              ? '💼 Projects'
+              : tab === 'applications'
+              ? '📋 Applications'
+              : tab === 'reviews'
+              ? '⭐ Reviews & Complaints'
+              : tab === 'preferences'
+              ? 'Hiring Directives'
+              : '💬 Chat'}
           </button>
         ))}
       </div>
 
       {/* Content Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
         {/* Main Panel */}
-        <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-3xl border border-brand-border shadow-sm">
+        <div className={`${(activeTab === 'profile' || activeTab === 'preferences') ? 'lg:col-span-8' : 'lg:col-span-12'} bg-white p-6 md:p-8 rounded-3xl border border-brand-border shadow-sm`}>
+          {/* MANAGED PROJECTS TAB */}
+          {activeTab === 'managedProjects' && (
+            <DashboardProjectsModule
+              userRole="employer"
+              userId={employer.id}
+              userName={employer.companyName || employer.contactPerson || 'Employer'}
+              activeSection="projects"
+            />
+          )}
+
+          {/* APPLICATIONS TAB */}
+          {activeTab === 'applications' && (
+            <EmployerApplicationsView
+              employerId={employer.id}
+              employerName={employer.companyName || employer.contactPerson || 'Employer'}
+            />
+          )}
+
+          {/* REVIEWS & COMPLAINTS TAB */}
+          {activeTab === 'reviews' && (
+            <div className="space-y-8">
+              <div>
+                <DashboardProjectsModule
+                  userRole="employer"
+                  userId={employer.id}
+                  userName={employer.companyName || employer.contactPerson || 'Employer'}
+                  activeSection="reviews"
+                />
+              </div>
+              <div className="pt-6 border-t border-brand-border/60">
+                <DashboardProjectsModule
+                  userRole="employer"
+                  userId={employer.id}
+                  userName={employer.companyName || employer.contactPerson || 'Employer'}
+                  activeSection="complaints"
+                />
+              </div>
+            </div>
+          )}
           
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
-            <form onSubmit={handleSaveCorporate} className="space-y-6">
+            <div className="space-y-8">
+              {/* Dedicated Media Upload Center */}
+              <div className="p-6 rounded-2xl bg-brand-warm-white/70 border border-brand-border/80 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-brand-border/60">
+                  <div>
+                    <h3 className="text-base font-display font-bold text-brand-midnight flex items-center gap-2">
+                      <ImageIcon size={18} className="text-brand-green" />
+                      Company Logo & Cover Banner Media Upload
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Upload high-resolution corporate logo and cover banners. Media is saved to Firestore and instantly synced across job postings and employer listings.
+                    </p>
+                  </div>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-brand-green text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
+                    <CheckCircle size={12} /> Live Sync
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Card 1: Logo Upload */}
+                  <div className="p-4 rounded-xl bg-white border border-brand-border flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold uppercase text-brand-green tracking-wider">
+                        01. Corporate Logo
+                      </span>
+                      <div className="mt-3 flex items-center gap-4">
+                        <UserAvatar 
+                          name={companyName}
+                          email={email}
+                          src={companyLogo} 
+                          hasCustomProfileImage={employer.hasCustomProfileImage || Boolean(companyLogo && !companyLogo.includes('unsplash.com'))}
+                          sizeClassName="w-16 h-16"
+                          roundedClassName="rounded-xl"
+                          className="border border-brand-border shadow-sm bg-brand-warm-white text-xl font-bold"
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-brand-midnight">Company Logo</p>
+                          <p className="text-[11px] text-gray-400">JPG, PNG, WebP up to 5MB</p>
+                          <p className="text-[10px] text-brand-green font-semibold mt-0.5">Recommended: 400x400px</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-brand-border/60">
+                      <label className="w-full py-2.5 px-4 rounded-xl bg-brand-midnight hover:bg-brand-midnight/90 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm">
+                        <Upload size={14} className="text-brand-green" />
+                        <span>Upload Company Logo</span>
+                        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleLogoChange} className="hidden" />
+                      </label>
+
+                      {isUploading && (
+                        <div className="mt-2 text-center text-xs text-brand-green font-mono flex items-center justify-center gap-1.5">
+                          <RefreshCw className="animate-spin" size={13} />
+                          <span>Uploading & Compressing ({logoProgress !== null ? `${logoProgress}%` : 'Wait...'})</span>
+                        </div>
+                      )}
+                      {logoSuccess && (
+                        <div className="mt-2 text-center text-xs text-brand-green font-semibold flex items-center justify-center gap-1">
+                          <CheckCircle size={13} /> Logo updated & saved!
+                        </div>
+                      )}
+                      {logoError && (
+                        <div className="mt-2 text-center text-xs text-rose-600 font-semibold flex items-center justify-center gap-1">
+                          <AlertCircle size={13} /> {logoError}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card 2: Cover Photo Banner Upload */}
+                  <div className="p-4 rounded-xl bg-white border border-brand-border flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold uppercase text-brand-green tracking-wider">
+                        02. Corporate Cover Banner
+                      </span>
+                      <div className="mt-3 flex items-center gap-4">
+                        <div className="w-24 h-14 rounded-lg overflow-hidden border border-brand-border bg-brand-midnight relative flex-shrink-0">
+                          <img src={coverPhoto} alt="Cover Preview" className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-brand-midnight">Landscape Banner</p>
+                          <p className="text-[11px] text-gray-400">JPG, PNG, WebP up to 10MB</p>
+                          <p className="text-[10px] text-brand-green font-semibold mt-0.5">Recommended: 1200x400px</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-brand-border/60">
+                      <label className="w-full py-2.5 px-4 rounded-xl bg-brand-midnight hover:bg-brand-midnight/90 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm">
+                        <Camera size={14} className="text-brand-green" />
+                        <span>Upload Cover Banner</span>
+                        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleCoverChange} className="hidden" />
+                      </label>
+
+                      {isCoverUploading && (
+                        <div className="mt-2 text-center text-xs text-brand-green font-mono flex items-center justify-center gap-1.5">
+                          <RefreshCw className="animate-spin" size={13} />
+                          <span>Uploading Cover Banner ({coverProgress !== null ? `${coverProgress}%` : 'Wait...'})</span>
+                        </div>
+                      )}
+                      {coverSuccess && (
+                        <div className="mt-2 text-center text-xs text-brand-green font-semibold flex items-center justify-center gap-1">
+                          <CheckCircle size={13} /> Cover banner saved!
+                        </div>
+                      )}
+                      {coverError && (
+                        <div className="mt-2 text-center text-xs text-rose-600 font-semibold flex items-center justify-center gap-1">
+                          <AlertCircle size={13} /> {coverError}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveCorporate} className="space-y-6">
               <h2 className="text-lg font-display font-bold text-brand-midnight border-b border-brand-border/60 pb-3 flex items-center gap-2">
                 <Building2 size={18} className="text-brand-green" />
                 Corporate Branding Details
@@ -319,6 +690,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                     className="w-full px-4 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-xs text-brand-midnight cursor-pointer"
                   >
                     <option>E-commerce & Retail</option>
+                    <option>Educational Technology & EdTech</option>
                     <option>Manufacturing & Industrial</option>
                     <option>Creative Arts & Marketing</option>
                     <option>Logistics & Supply Chain</option>
@@ -329,7 +701,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-brand-midnight uppercase tracking-wider mb-1.5">
                     Contact Person Name
@@ -345,6 +717,36 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                       onChange={(e) => setContactPerson(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 rounded-xl bg-brand-warm-white border border-brand-border focus:border-brand-green outline-none text-xs text-brand-midnight"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-brand-midnight uppercase tracking-wider mb-1.5">
+                    Contact Gender
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setGender('Male')}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                        gender === 'Male'
+                          ? 'bg-brand-midnight text-white border-brand-midnight shadow-sm'
+                          : 'bg-brand-warm-white text-gray-700 border-brand-border hover:border-brand-midnight'
+                      }`}
+                    >
+                      Male
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGender('Female')}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                        gender === 'Female'
+                          ? 'bg-brand-midnight text-white border-brand-midnight shadow-sm'
+                          : 'bg-brand-warm-white text-gray-700 border-brand-border hover:border-brand-midnight'
+                      }`}
+                    >
+                      Female
+                    </button>
                   </div>
                 </div>
 
@@ -440,15 +842,68 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
                 </div>
               </div>
 
+              {/* Account Security & Passkey Section inside Profile */}
+              <div className="border-t border-brand-border/60 pt-6 space-y-4">
+                <h3 className="text-sm font-display font-bold text-brand-midnight flex items-center gap-2">
+                  <Settings size={18} className="text-brand-green" />
+                  Account Security & Passkey Setup
+                </h3>
+
+                <div className="space-y-4 bg-brand-warm-white/20 p-5 rounded-2xl border border-brand-border shadow-sm">
+                  <h4 className="text-xs font-display font-bold text-brand-midnight flex items-center gap-1.5 uppercase tracking-wider">
+                    <Key size={15} className="text-brand-green" />
+                    Corporate Passkey & Credentials
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-brand-midnight uppercase tracking-wider mb-1.5">
+                        Change Password
+                      </label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-white border border-brand-border outline-none text-xs text-brand-midnight"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => alert('Corporate credentials updated!')}
+                        className="px-4 py-3 rounded-xl bg-brand-midnight hover:bg-brand-midnight/90 text-white font-semibold text-xs uppercase tracking-wider shadow-sm transition-colors cursor-pointer"
+                      >
+                        Update Passkey
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end pt-4">
                 <button
                   type="submit"
                   className="px-6 py-3.5 rounded-xl bg-brand-green hover:bg-emerald-700 text-white font-semibold text-xs uppercase tracking-wider shadow-sm transition-colors cursor-pointer"
                 >
-                  Update Company Profile
+                  Update Company Profile & Credentials
                 </button>
               </div>
             </form>
+          </div>
+          )}
+
+          {/* CHAT TAB (Main Enterprise Chat Section) */}
+          {activeTab === 'chat' && (
+            <div className="animate-fadeIn min-h-[600px] w-full">
+              <RealtimeChat
+                projectId={selectedChatProject?.id || 'default_chat_room'}
+                projectTitle={selectedChatProject?.title || 'SureDev Main Chat System'}
+                project={selectedChatProject || undefined}
+                userId={employer.id}
+                userName={employer.companyName}
+                userRole="employer"
+                onSelectProject={(proj) => setSelectedChatProject(proj)}
+              />
+            </div>
           )}
 
           {/* HIRING DIRECTIVES TAB */}
@@ -552,28 +1007,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
             </div>
           )}
 
-          {/* GMAIL INBOX TAB */}
-          {activeTab === 'gmail' && (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="border-b border-brand-border/60 pb-4">
-                <h2 className="text-lg font-display font-bold text-brand-midnight flex items-center gap-2">
-                  <Mail size={18} className="text-brand-green" />
-                  Your Synchronized Google Inbox
-                </h2>
-                <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                  View your automated Abia Tech Guild welcome updates, onboarding messages, and contract dispatches synchronized directly using your Google Account details.
-                </p>
-              </div>
-
-              <GoogleInbox 
-                userEmail={employer.email}
-                userName={employer.contactPerson}
-                isGoogleConnected={!!isGoogleUser}
-                onConnectGoogle={onConnectGoogle || (() => {})}
-                accountType="employer"
-              />
-            </div>
-          )}
+          {/* CHAT TAB (Empty Panel for future details) */}
 
           {/* SECURITY TAB */}
           {activeTab === 'security' && (
@@ -616,8 +1050,9 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
 
         </div>
 
-        {/* Right Sidebar */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Right Sidebar - Only present on profile and preferences sections */}
+        {(activeTab === 'profile' || activeTab === 'preferences') && (
+          <div className="lg:col-span-4 space-y-6">
           
           {/* Desired Skills Block */}
           <div className="bg-white p-6 rounded-3xl border border-brand-border shadow-sm space-y-4">
@@ -646,9 +1081,9 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
             </form>
 
             <div className="flex flex-wrap gap-2 pt-2">
-              {desiredSkills.map((skill) => (
+              {desiredSkills.map((skill, idx) => (
                 <span 
-                  key={skill} 
+                  key={`${skill}-${idx}`} 
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-warm-white border border-brand-border text-xs font-bold text-gray-600"
                 >
                   {skill}
@@ -688,6 +1123,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
           </div>
 
         </div>
+        )}
 
       </div>
 

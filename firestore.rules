@@ -1,7 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -10,16 +9,21 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == ownerId;
     }
 
-    // Users Collection
+    // Users Collection - Role Immutability Protected
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow read: if true;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && (
+        (!('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+        (!('accountType' in resource.data) || request.resource.data.accountType == resource.data.accountType)
+      );
+      allow delete: if isOwner(userId);
     }
 
     // Developers Collection
     match /developers/{developerId} {
       allow read: if true;
-      allow create: if isOwner(developerId) || (isAuthenticated() && request.resource.data.ownerId == request.auth.uid);
+      allow create: if isAuthenticated();
       allow update: if isOwner(developerId) || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       allow delete: if isOwner(developerId) || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
     }
@@ -27,7 +31,7 @@ service cloud.firestore {
     // Employers Collection
     match /employers/{employerId} {
       allow read: if true;
-      allow create: if isOwner(employerId) || (isAuthenticated() && request.resource.data.ownerId == request.auth.uid);
+      allow create: if isAuthenticated();
       allow update: if isOwner(employerId) || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       allow delete: if isOwner(employerId) || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
     }
@@ -35,23 +39,190 @@ service cloud.firestore {
     // Collaboration Requests
     match /collaboration_requests/{requestId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
       allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
     }
 
     // Activity Logs
     match /activity_logs/{logId} {
-      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid);
-      allow create: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid);
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid);
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Email Notifications
+    match /email_notifications/{emailId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Projects Collection
+    match /projects/{projectId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.developerId == request.auth.uid);
+      allow delete: if isAuthenticated() && resource.data.employerId == request.auth.uid;
+    }
+
+    // Employer Project Posts Collection
+    match /projectPosts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employer' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'employer'
+      ) && request.resource.data.employerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.employerId == request.auth.uid;
+    }
+
+    // Project Applications Collection (Phase 3)
+    match /projectApplications/{applicationId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        resource.data.developerId == request.auth.uid ||
+        resource.data.employerId == request.auth.uid ||
+        request.auth.uid != null
+      );
+      allow create: if isAuthenticated() && request.resource.data.developerId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.employerId == request.auth.uid ||
+        resource.data.developerId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && resource.data.developerId == request.auth.uid;
+    }
+
+    // Project Timeline Events
+    match /projectTimeline/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Complaints Collection
+    match /complaints/{complaintId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     // Reviews Collection
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid);
-      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.reviewerId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+    }
+
+    // Contract Workspace Collections
+    match /contract_messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.senderId == request.auth.uid || request.auth != null);
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+    }
+
+    match /contract_files/{fileId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.uploadedBy == request.auth.uid;
+    }
+
+    match /contract_milestones/{milestoneId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /contract_deliverables/{deliverableId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /contract_tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /contract_meetings/{meetingId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /contract_change_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /contract_disputes/{disputeId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Workspace Presence
+    match /workspace_presence/{presenceId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Workspace Bookmarks
+    match /workspace_bookmarks/{bookmarkId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Workspace Favorites
+    match /workspace_favorites/{favoriteId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Recent Items
+    match /recent_items/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Workspace Access Logs
+    match /workspace_access_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Workspace Drafts
+    match /workspace_drafts/{draftId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Extended Contract Reviews
+    match /contract_reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Call Sessions & WebRTC Signaling
+    match /calls/{callId} {
+      allow read, create, update, delete: if isAuthenticated();
+      match /{allSubcollections=**} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
     }
   }
 }
+

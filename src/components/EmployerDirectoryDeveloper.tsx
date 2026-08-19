@@ -147,6 +147,18 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
                     </h3>
                     <p className="text-brand-green text-xs font-semibold">{emp.industry}</p>
                     
+                    {/* Real-time Rating Badge */}
+                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-600 font-semibold">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill={emp.reviewCount && emp.reviewCount > 0 && emp.averageRating ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide lucide-star ${emp.reviewCount && emp.reviewCount > 0 && emp.averageRating ? "text-amber-400 fill-amber-400" : "text-gray-300"}`}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      {emp.reviewCount && emp.reviewCount > 0 && emp.averageRating ? (
+                        <span className="text-[11px] text-gray-700 font-bold">
+                          <strong className="text-brand-midnight font-mono">{emp.averageRating.toFixed(1)}</strong> / 5.0 <span className="text-gray-400 font-normal">({emp.reviewCount} {emp.reviewCount === 1 ? 'review' : 'reviews'})</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-[10px] font-normal italic">Unrated (No reviews yet)</span>
+                      )}
+                    </div>
+                    
                     <div className="flex gap-3 mt-1.5 font-mono text-[9px] uppercase font-extrabold tracking-wider text-gray-400 items-center">
                       <span className="flex items-center gap-1">
                         {/* MapPin SVG inline for absolute safety */}
@@ -179,13 +191,13 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
                     Actively Seeking Tracks:
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {emp.hiringCategories.map(cat => (
-                      <span key={cat} className="px-2.5 py-1 rounded-xl bg-brand-green/5 border border-brand-green/15 text-brand-green font-semibold text-[10px]">
+                    {emp.hiringCategories.map((cat, idx) => (
+                      <span key={`${cat}-${idx}`} className="px-2.5 py-1 rounded-xl bg-brand-green/5 border border-brand-green/15 text-brand-green font-semibold text-[10px]">
                         {cat}
                       </span>
                     ))}
-                    {emp.hiringTypes.map(type => (
-                      <span key={type} className="px-2.5 py-1 rounded-xl bg-brand-midnight text-brand-gold font-semibold text-[10px] border border-brand-midnight">
+                    {emp.hiringTypes.map((type, idx) => (
+                      <span key={`${type}-${idx}`} className="px-2.5 py-1 rounded-xl bg-brand-midnight text-brand-gold font-semibold text-[10px] border border-brand-midnight">
                         {type}
                       </span>
                     ))}
@@ -198,8 +210,8 @@ export const EmployerDirectoryDeveloper: React.FC<EmployerDirectoryDeveloperProp
                     Target Technologies Stack:
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {emp.desiredSkills.map(skill => (
-                      <span key={skill} className="px-2 py-0.5 rounded-lg bg-brand-warm-white border border-brand-border text-[9px] font-bold text-gray-600">
+                    {emp.desiredSkills.map((skill, idx) => (
+                      <span key={`${skill}-${idx}`} className="px-2 py-0.5 rounded-lg bg-brand-warm-white border border-brand-border text-[9px] font-bold text-gray-600">
                         {skill}
                       </span>
                     ))}

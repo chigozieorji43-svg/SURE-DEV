@@ -55,10 +55,7 @@ export const Hero: React.FC<HeroProps> = ({
           >
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold text-brand-midnight tracking-tight leading-[1.08]">
               Find the Best <br />
-              <span className="text-brand-green relative inline-block">
-                Tech Talent
-                <span className="absolute bottom-1 left-0 w-full h-[6px] bg-brand-gold/10 -z-10 rounded-full" />
-              </span> in Abia.
+              <span className="text-brand-green">Tech Talents</span> in Abia.
             </h1>
             <p className="text-gray-500 text-lg md:text-xl font-normal max-w-xl leading-relaxed">
               SureDev connects elite software engineers, product designers, and developers in Aba, Umuahia, and beyond with world-class local and global teams.

@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "ProjectApplication": {
+      "title": "Project Application",
+      "description": "Application submitted by a developer for an employer project post",
+      "type": "object",
+      "properties": {
+        "applicationId": { "type": "string", "description": "Unique application document ID" },
+        "projectId": { "type": "string", "description": "Referenced project post ID" },
+        "employerId": { "type": "string", "description": "Firebase UID of project owner employer" },
+        "developerId": { "type": "string", "description": "Firebase UID of applying developer" },
+        "developerName": { "type": "string", "description": "Developer full name" },
+        "developerProfileImage": { "type": "string", "description": "Developer avatar image URL" },
+        "projectTitle": { "type": "string", "description": "Title of the project being applied for" },
+        "proposal": { "type": "string", "maxLength": 2000, "description": "Developer application proposal message" },
+        "experience": { "type": "string", "maxLength": 1000, "description": "Optional relevant experience summary" },
+        "estimatedCompletionTime": { "type": "string", "maxLength": 200, "description": "Optional estimated completion timeframe" },
+        "proposedBudget": { "type": "string", "maxLength": 200, "description": "Optional proposed budget or rate" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"], "description": "Current status of the application" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp when application was created" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp when application was last updated" }
+      },
+      "required": [
+        "projectId",
+        "employerId",
+        "developerId",
+        "developerName",
+        "projectTitle",
+        "proposal",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/projectApplications/{applicationId}": {
+      "schema": { "$ref": "#/entities/ProjectApplication" },
+      "description": "Developer applications for employer project posts"
+    }
+  }
+}

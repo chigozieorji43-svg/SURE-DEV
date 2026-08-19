@@ -15,7 +15,6 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   name = '',
   email = '',
   src = '',
-  hasCustomProfileImage = false,
   className = '',
   sizeClassName = 'w-10 h-10',
   roundedClassName = 'rounded-full',
@@ -25,21 +24,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   // Reset error state immediately whenever src prop updates
   useEffect(() => {
-    console.log("Image URL (src) passed to Avatar component:", src);
     setImgError(false);
   }, [src]);
 
-  const isDefaultUnsplash = (url?: string) => {
-    if (!url) return true;
-    return (
-      url.includes('unsplash.com/photo-1534528741775-53994a69daeb') || // dev default
-      url.includes('unsplash.com/photo-1486406146926-c627a92ad1ab') || // emp default
-      url.includes('unsplash.com/photo-1618005182384-a83a8bd57fbe')    // cover/logo fallbacks
-    );
-  };
-
-  const isCustomImage = Boolean(src && (!isDefaultUnsplash(src) || hasCustomProfileImage));
-  const showImage = isCustomImage && !imgError;
+  const showImage = Boolean(src) && !imgError;
 
   if (!showImage) {
     const displayName = name || email.split('@')[0] || '?';
@@ -79,7 +67,6 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   return (
     <img
-      key={src}
       src={src}
       alt={name || 'Avatar'}
       referrerPolicy="no-referrer"
@@ -89,3 +76,4 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     />
   );
 };
+

@@ -407,11 +407,11 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen bg-brand-warm-white/40 pb-24 pt-32">
-      <div className="max-w-7xl mx-auto px-6 md:px-12">
+    <div className="relative min-h-screen bg-brand-warm-white/30 pb-20 pt-24 w-full">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-10">
         
         {/* Navigation Action Area */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={onBack}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-border bg-white text-sm font-bold text-brand-midnight hover:border-gray-400 hover:shadow-sm transition-all cursor-pointer"
@@ -428,71 +428,66 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
           </div>
         </div>
 
-        {/* PROFILE HEADER GRID */}
-        <div className="bg-white rounded-[32px] overflow-hidden border border-brand-border shadow-premium mb-10">
+        {/* FULL-WIDTH STREAMLINED PROFILE HERO HEADER */}
+        <div className="bg-white rounded-3xl overflow-hidden border border-brand-border shadow-md mb-8">
           
-          {/* Cover Banner Area based on Track Theme */}
-          <div className={`h-48 bg-gradient-to-r ${meta.gradientHeader} relative p-8 flex items-end justify-between`}>
-            {/* Blueprint Grid Lines Overlay for CAD/CAM */}
-            {track === 'cad-cam' && (
-              <div className="absolute inset-0 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:20px_20px] opacity-15" />
-            )}
-            {/* Code Brackets Overlay for Backend */}
-            {track === 'backend' && (
-              <div className="absolute inset-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px] opacity-10 font-mono text-[9px] text-emerald-500/20 p-4 select-none overflow-hidden leading-none">
-                {`for (let i = 0; i < 5000; i++) { checkCluster(AbaCentral); optimizePayoutRails(); }`}
-              </div>
-            )}
-            {/* Layout Grid Overlay for UI/UX */}
-            {track === 'ui-ux' && (
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#fda4af_1px,transparent_1px),linear-gradient(to_bottom,#fda4af_1px,transparent_1px)] [background-size:24px_24px] opacity-10" />
-            )}
-            
-            <span className={`absolute top-6 right-6 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full ${meta.badgeBg} text-xs font-bold uppercase tracking-wider border shadow-sm`}>
-              <Sparkles size={12} className="animate-pulse" />
-              {meta.badge}
-            </span>
+          {/* Top Track & Vetting Bar */}
+          <div className={`p-4 sm:p-6 bg-gradient-to-r ${meta.gradientHeader} text-white flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80`}>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${meta.badgeBg} text-xs font-bold uppercase tracking-wider border shadow-sm`}>
+                <Sparkles size={12} className="animate-pulse" />
+                {meta.badge}
+              </span>
+              <span className="hidden sm:inline text-xs text-slate-300">
+                • {meta.tagLine}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 text-brand-gold font-extrabold border border-white/10">
+                Vetted Top {developer.featured ? '1%' : '5%'}
+              </span>
+            </div>
           </div>
 
-          {/* Profile Core Branding Strip */}
-          <div className="px-8 md:px-12 pb-8 pt-6 relative z-10">
-            <div className="flex flex-col md:flex-row gap-8 items-start md:items-end justify-between">
-              <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
+          {/* Profile Core Branding & Actions Strip */}
+          <div className="p-6 sm:p-8 md:p-10 relative z-10 bg-white">
+            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+              
+              {/* Profile Details & Avatar */}
+              <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
                 <img
                   src={developer.profileImageUrl || developer.avatar}
                   alt={developer.name}
                   referrerPolicy="no-referrer"
-                  className="w-28 h-28 rounded-2xl object-cover border-4 border-white shadow-premium bg-brand-warm-white -mt-14 md:-mt-20 relative z-20"
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-brand-border shadow-md bg-brand-warm-white shrink-0"
                 />
-                <div>
+                <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl md:text-4xl font-display font-bold text-brand-midnight tracking-tight">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-brand-midnight tracking-tight">
                       {developer.name}
                     </h1>
-                    <span className="inline-flex px-2 py-0.5 rounded-md bg-brand-midnight text-brand-gold font-mono text-[10px] uppercase font-extrabold tracking-wider border border-brand-gold/10">
-                      Vetted Top {developer.featured ? '1%' : '5%'}
-                    </span>
                   </div>
-                  <p className="text-lg text-brand-green font-medium mt-1">
+                  <p className="text-base sm:text-lg text-brand-green font-semibold">
                     {developer.title}
                   </p>
                   
-                  <div className="flex flex-wrap gap-5 mt-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  <div className="flex flex-wrap gap-4 pt-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
                     <span className="flex items-center gap-1.5">
-                      <MapPin size={14} className="text-brand-green" />
+                      <MapPin size={14} className="text-brand-green shrink-0" />
                       {developer.location}, Abia State
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Briefcase size={14} className="text-brand-green" />
+                      <Briefcase size={14} className="text-brand-green shrink-0" />
                       {developer.experience} Years Certified
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Mail size={14} className="text-brand-green animate-pulse" />
+                      <Mail size={14} className="text-brand-green shrink-0" />
                       {developer.email}
                     </span>
                     {developer.qualification && (
                       <span className="flex items-center gap-1.5 normal-case">
-                        <GraduationCap size={14} className="text-brand-green" />
+                        <GraduationCap size={14} className="text-brand-green shrink-0" />
                         {developer.qualification}
                       </span>
                     )}
@@ -500,12 +495,13 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-stretch md:items-center">
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-stretch sm:items-center shrink-0 pt-2 lg:pt-0">
                 {/* Book Contract button for employers or guests */}
                 {(!isDevViewer || isSelf) && (
                   <button
                     onClick={() => onHireClick(developer)}
-                    className="flex-1 md:flex-initial px-8 py-4 rounded-xl bg-brand-green hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all hover:translate-y-[-1px] cursor-pointer text-center whitespace-nowrap"
+                    className="flex-1 lg:flex-initial px-8 py-3.5 rounded-xl bg-brand-green hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all hover:translate-y-[-1px] cursor-pointer text-center whitespace-nowrap"
                   >
                     Book Secure Contract
                   </button>
@@ -513,14 +509,14 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
 
                 {/* Collaboration System for Developers */}
                 {isDevViewer && (
-                  <div className="flex flex-col gap-3 w-full md:w-auto">
+                  <div className="flex flex-col gap-3 w-full lg:w-auto">
                     {isSelf ? (
-                      <span className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand-green/10 text-brand-green border border-brand-green/20 text-xs font-bold uppercase tracking-wider">
+                      <span className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-brand-green/10 text-brand-green border border-brand-green/20 text-xs font-bold uppercase tracking-wider">
                         <Sparkles size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
                         My Public Workspace Profile
                       </span>
                     ) : (
-                      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+                      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                         {/* ACCEPTED state: Connected! */}
                         {collabRequest?.status === 'accepted' ? (
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -529,7 +525,6 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                               Connected Partner
                             </span>
                             
-                            {/* WhatsApp link with phone fallback */}
                             <a
                               href={developer.phone ? `https://wa.me/${developer.phone.replace(/[^0-9]/g, '')}` : `https://wa.me/2348012345678?text=Hello%20${encodeURIComponent(developer.name)}!%20Let's%20collaborate.`}
                               target="_blank"
@@ -540,7 +535,6 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                               Connect WhatsApp
                             </a>
 
-                            {/* GitHub link */}
                             <a
                               href={developer.githubUrl}
                               target="_blank"
@@ -553,7 +547,6 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                           </div>
                         ) : collabRequest?.status === 'pending' ? (
                           collabRequest.senderId === userSession?.developerProfileId ? (
-                            /* PENDING state: Sent by logged-in developer */
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                               <span className="inline-flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl bg-brand-gold/10 text-brand-gold border border-brand-gold/20 text-xs font-bold uppercase tracking-wider">
                                 <AlertCircle size={14} className="animate-pulse" />
@@ -567,7 +560,6 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                               </button>
                             </div>
                           ) : (
-                            /* PENDING state: Received by logged-in developer */
                             <div className="bg-brand-warm-white p-4 rounded-2xl border border-brand-border shadow-sm flex flex-col gap-3 min-w-[280px]">
                               <p className="text-[10px] font-mono font-bold text-brand-green uppercase tracking-wider flex items-center gap-1">
                                 <Sparkles size={10} /> Incoming Collaboration Request
@@ -594,12 +586,11 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                             </div>
                           )
                         ) : (
-                          /* NO REQUEST OR DECLINED: Allow connecting! */
                           <div className="flex flex-col gap-3 items-end">
                             {!showCollabForm ? (
                               <button
                                 onClick={() => setShowCollabForm(true)}
-                                className="px-6 py-4 rounded-xl bg-brand-green hover:bg-emerald-700 text-white font-bold text-sm shadow-sm transition-all hover:translate-y-[-1px] cursor-pointer text-center flex items-center gap-2"
+                                className="px-6 py-3.5 rounded-xl bg-brand-green hover:bg-emerald-700 text-white font-bold text-sm shadow-sm transition-all hover:translate-y-[-1px] cursor-pointer text-center flex items-center gap-2"
                               >
                                 <Sparkles size={16} />
                                 Request Collaboration
@@ -653,13 +644,13 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
               </div>
             </div>
 
-            {/* Profile Tab Switcher */}
-            <div className="flex gap-1 border-t border-brand-border/60 mt-8 pt-2 overflow-x-auto scrollbar-hide">
+            {/* Profile Tab Switcher Integrated into Header */}
+            <div className="flex gap-1 border-t border-brand-border/60 mt-6 pt-3 overflow-x-auto scrollbar-hide">
               {(['overview', 'tech', 'projects', 'contact'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-6 py-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === tab
                       ? 'border-brand-green text-brand-midnight font-extrabold'
                       : 'border-transparent text-gray-400 hover:text-brand-midnight hover:border-brand-border'
@@ -753,11 +744,11 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                     </p>
                     
                     <div className="flex flex-wrap gap-2">
-                      {developer.skills.map((skill) => {
+                      {developer.skills.map((skill, idx) => {
                         const isEndorsed = endorsedSkills[skill];
                         return (
                           <button
-                            key={skill}
+                            key={`${skill}-${idx}`}
                             onClick={() => handleEndorse(skill)}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                               isEndorsed
@@ -1604,8 +1595,8 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
             {/* TAB 3: FEATURED PORTFOLIO WORK / CASE STUDIES */}
             {activeTab === 'projects' && (
               <div className="space-y-8">
-                {developer.projects.map((project) => (
-                  <div key={project.id} className="bg-white rounded-3xl overflow-hidden border border-brand-border shadow-premium group">
+                {developer.projects.map((project, idx) => (
+                  <div key={project.id ? `${project.id}-${idx}` : idx} className="bg-white rounded-3xl overflow-hidden border border-brand-border shadow-premium group">
                     <div className="aspect-[21/9] relative overflow-hidden bg-brand-midnight">
                       <img
                         src={project.image}
@@ -1641,8 +1632,8 @@ export const DeveloperProfilePage: React.FC<DeveloperProfilePageProps> = ({
                             Technologies Deployed
                           </h5>
                           <div className="flex flex-wrap gap-1.5">
-                            {project.tags.map((tag) => (
-                              <span key={tag} className="px-2.5 py-1 rounded-xl bg-brand-warm-white text-gray-600 font-medium text-xs border border-brand-border/60">
+                            {project.tags.map((tag, idx) => (
+                              <span key={`${tag}-${idx}`} className="px-2.5 py-1 rounded-xl bg-brand-warm-white text-gray-600 font-medium text-xs border border-brand-border/60">
                                 {tag}
                               </span>
                             ))}

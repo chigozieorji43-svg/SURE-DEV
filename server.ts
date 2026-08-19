@@ -177,6 +177,53 @@ ${groundingContext}
   }
 });
 
+// API endpoint for Workspace AI Copilot
+app.post("/api/ai/workspace-copilot", async (req, res) => {
+  try {
+    const { action, projectTitle, chatHistory, textToSummarize, prompt, role } = req.body;
+
+    if (!apiKey) {
+      return res.json({
+        result: "SureDev AI Copilot is currently running in local offline mode. GEMINI_API_KEY environment variable is not configured. Configured fallback response provided.",
+        isFallback: true
+      });
+    }
+
+    const systemPrompt = `You are SureDev AI Workspace Copilot, an expert software architecture and project management AI assistant.
+Project Title: "${projectTitle || 'Software Development Project'}"
+User Role: ${role || 'Collaborator'}
+
+Your task: ${action || 'Assist with workspace tasks'}
+Keep response professional, actionable, concise, well-formatted with Markdown, and focused on practical delivery without mentioning payment, wallet, or escrow.`;
+
+    let userPrompt = prompt || "Analyze this project contract workspace.";
+    if (action === 'summarize_chat' && chatHistory) {
+      userPrompt = `Summarize the recent workspace chat messages and list key takeaways & decisions:\n\n${JSON.stringify(chatHistory)}`;
+    } else if (action === 'draft_reply') {
+      userPrompt = `Draft a polite, highly professional reply to the last message in this context:\n\n${textToSummarize || prompt}`;
+    } else if (action === 'summarize_doc') {
+      userPrompt = `Summarize the key requirements and action items from this document text:\n\n${textToSummarize}`;
+    } else if (action === 'suggest_milestones') {
+      userPrompt = `Break down the scope into 4 clear, well-defined milestones with deliverables and estimated due dates for a project titled "${projectTitle}".`;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { role: 'user', parts: [{ text: `${systemPrompt}\n\nTask details: ${userPrompt}` }] }
+      ]
+    });
+
+    res.json({
+      result: response.text || "Analyzed workspace content.",
+      isFallback: false
+    });
+  } catch (err: any) {
+    console.error("Workspace Copilot error:", err);
+    res.status(500).json({ error: err.message || "Failed to process AI Copilot request." });
+  }
+});
+
 // Mount Email & Notification API Routes
 app.use("/api/email", emailRouter);
 

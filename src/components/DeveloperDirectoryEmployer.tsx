@@ -227,10 +227,10 @@ export const DeveloperDirectoryEmployer: React.FC<DeveloperDirectoryEmployerProp
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDevelopers.map((dev) => (
+          {filteredDevelopers.map((dev, idx) => (
             <motion.div
               layout
-              key={dev.id}
+              key={dev.id ? `${dev.id}-${idx}` : idx}
               className="bg-white rounded-3xl border border-brand-border shadow-sm hover:shadow-premium hover:-translate-y-1 transition-all duration-300 p-6 flex flex-col justify-between gap-5 relative overflow-hidden group"
             >
               
@@ -301,9 +301,9 @@ export const DeveloperDirectoryEmployer: React.FC<DeveloperDirectoryEmployerProp
 
                 {/* Skills badges */}
                 <div className="flex flex-wrap gap-1.5 mt-4">
-                  {dev.skills.slice(0, 4).map((skill) => (
+                  {dev.skills.slice(0, 4).map((skill, idx) => (
                     <span
-                      key={skill}
+                      key={`${skill}-${idx}`}
                       className="px-2 py-1 rounded-lg bg-brand-warm-white border border-brand-border text-[10px] font-bold text-gray-600"
                     >
                       {skill}

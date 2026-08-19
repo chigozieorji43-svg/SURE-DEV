@@ -284,9 +284,9 @@ export const TrackPage: React.FC<TrackPageProps> = ({
 
               {/* Skills directory indicators */}
               <div className="flex flex-wrap gap-2 mt-6">
-                {meta.skillsHighlighted.map((skill) => (
+                {meta.skillsHighlighted.map((skill, idx) => (
                   <span
-                    key={skill}
+                    key={`${skill}-${idx}`}
                     className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono font-bold text-white uppercase tracking-wider"
                   >
                     {skill}
@@ -411,9 +411,9 @@ export const TrackPage: React.FC<TrackPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredDevs.map((dev) => (
+            {filteredDevs.map((dev, idx) => (
               <div
-                key={dev.id}
+                key={dev.id ? `${dev.id}-${idx}` : idx}
                 id={`track-dev-card-${dev.id}`}
                 className="group relative bg-white rounded-[24px] p-6 border border-brand-border hover:border-brand-green/30 hover:shadow-premium-hover transition-all duration-300 flex flex-col justify-between"
               >
@@ -454,9 +454,9 @@ export const TrackPage: React.FC<TrackPageProps> = ({
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mb-6">
-                    {dev.skills.slice(0, 4).map((skill) => (
+                    {dev.skills.slice(0, 4).map((skill, idx) => (
                       <span
-                        key={skill}
+                        key={`${skill}-${idx}`}
                         className="px-2.5 py-1 rounded-full bg-brand-warm-white text-gray-600 font-bold text-xs border border-brand-border/60"
                       >
                         {skill}

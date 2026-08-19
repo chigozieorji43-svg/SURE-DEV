@@ -127,9 +127,9 @@ export const InAppNotificationCenter: React.FC<InAppNotificationCenterProps> = (
                 <span>You're all caught up! No notifications.</span>
               </div>
             ) : (
-              notifications.map((notif) => (
+              notifications.map((notif, idx) => (
                 <div
-                  key={notif.id}
+                  key={notif.id ? `${notif.id}-${idx}` : idx}
                   onClick={() => {
                     if (!notif.read) handleMarkAsRead(notif.id);
                     if (notif.actionUrl && onNavigate) {

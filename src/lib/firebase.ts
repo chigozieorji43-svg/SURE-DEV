@@ -11,7 +11,10 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   sendEmailVerification,
-  updateProfile
+  updateProfile,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
+  applyActionCode
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -134,6 +137,9 @@ export {
   sendPasswordResetEmail,
   sendEmailVerification,
   updateProfile,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
+  applyActionCode,
   // Firestore
   collection,
   doc,

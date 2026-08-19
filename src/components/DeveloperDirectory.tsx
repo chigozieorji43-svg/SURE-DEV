@@ -326,9 +326,9 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
 
       {/* 5. Developer Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {(showAll ? filteredDevelopers : filteredDevelopers.slice(0, 4)).map((dev) => (
+        {(showAll ? filteredDevelopers : filteredDevelopers.slice(0, 4)).map((dev, idx) => (
           <div
-            key={dev.id}
+            key={dev.id ? `${dev.id}-${idx}` : idx}
             id={`dev-card-${dev.id}`}
             className="group relative bg-white rounded-[24px] p-6 border border-brand-border hover:border-brand-green/30 hover:shadow-premium-hover transition-all duration-300 flex flex-col justify-between"
           >
@@ -374,9 +374,9 @@ export const DeveloperDirectory: React.FC<DeveloperDirectoryProps> = ({
 
               {/* Tag pills */}
               <div className="flex flex-wrap gap-1.5 mb-6">
-                {dev.skills.slice(0, 4).map((skill) => (
+                {dev.skills.slice(0, 4).map((skill, idx) => (
                   <span
-                    key={skill}
+                    key={`${skill}-${idx}`}
                     className="px-2.5 py-1 rounded-full bg-brand-warm-white text-gray-600 font-medium text-xs border border-brand-border/60"
                   >
                     {skill}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Home, Sun, Moon, Settings, ShieldAlert } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Search, FileCode2, Sun, Moon, Settings, ShieldAlert, Database, Briefcase } from 'lucide-react';
 import suredevBrandLogo from '../assets/images/suredev_brand_logo_1784065255454.jpg';
 import { UserSession } from '../types';
 import { UserAvatar } from './UserAvatar';
@@ -7,8 +7,8 @@ import { InAppNotificationCenter } from './InAppNotificationCenter';
 
 interface NavbarProps {
   userSession: UserSession | null;
-  activeView: 'landing' | 'dashboard' | 'directory';
-  onViewChange: (view: 'landing' | 'dashboard' | 'directory') => void;
+  activeView: 'landing' | 'dashboard' | 'directory' | 'post-project' | 'find-work';
+  onViewChange: (view: 'landing' | 'dashboard' | 'directory' | 'post-project' | 'find-work') => void;
   onLoginClick: () => void;
   onJoinClick: () => void;
   onLogoutClick: () => void;
@@ -17,6 +17,8 @@ interface NavbarProps {
   onToggleDarkMode: () => void;
   onOpenEmailPrefs?: () => void;
   onOpenAdminEmail?: () => void;
+  onOpenMigrationAudit?: () => void;
+  onNavigateToPostProject?: () => void;
   currentUserId?: string;
 }
 
@@ -32,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleDarkMode,
   onOpenEmailPrefs,
   onOpenAdminEmail,
+  onOpenMigrationAudit,
+  onNavigateToPostProject,
   currentUserId,
 }) => {
   const [scrolled, setScrolled] = useState(false);
@@ -89,54 +93,124 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Navigation links (Desktop) */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7">
           {userSession ? (
             <>
               {/* Logged In Navigation */}
-              <button
-                onClick={() => {
-                  onViewChange('dashboard');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  activeView === 'dashboard'
-                    ? 'text-brand-green'
-                    : 'text-gray-500 hover:text-brand-midnight'
-                }`}
-              >
-                <LayoutDashboard size={15} />
-                Dashboard
-              </button>
+              {userSession.accountType === 'developer' ? (
+                <>
+                  {/* Primary Developer Navigation: Find Work */}
+                  <button
+                    onClick={() => {
+                      onViewChange('find-work');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'find-work'
+                        ? 'text-brand-green'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white'
+                    }`}
+                  >
+                    <Briefcase size={15} />
+                    Find Work
+                  </button>
 
-              <button
-                onClick={() => {
-                  onViewChange('directory');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  activeView === 'directory'
-                    ? 'text-brand-green'
-                    : 'text-gray-500 hover:text-brand-midnight'
-                }`}
-              >
-                <Search size={15} />
-                {userSession.accountType === 'developer' ? 'Browse Employers' : 'Browse Talent'}
-              </button>
+                  <button
+                    onClick={() => {
+                      onViewChange('dashboard');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'dashboard'
+                        ? 'text-brand-green'
+                        : 'text-gray-500 hover:text-brand-midnight dark:hover:text-white'
+                    }`}
+                  >
+                    <LayoutDashboard size={15} />
+                    Dashboard
+                  </button>
 
-              <button
-                onClick={() => {
-                  onViewChange('landing');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  activeView === 'landing'
-                    ? 'text-brand-green'
-                    : 'text-gray-500 hover:text-brand-midnight'
-                }`}
-              >
-                <Home size={15} />
-                Landing Page
-              </button>
+                  <button
+                    onClick={() => {
+                      onViewChange('directory');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'directory'
+                        ? 'text-brand-green'
+                        : 'text-gray-400 hover:text-gray-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Search size={13} />
+                    Browse Employers
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      onViewChange('dashboard');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'dashboard'
+                        ? 'text-brand-green'
+                        : 'text-gray-500 hover:text-brand-midnight dark:hover:text-white'
+                    }`}
+                  >
+                    <LayoutDashboard size={15} />
+                    Dashboard
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onViewChange('directory');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'directory'
+                        ? 'text-brand-green'
+                        : 'text-gray-500 hover:text-brand-midnight dark:hover:text-white'
+                    }`}
+                  >
+                    <Search size={15} />
+                    Browse Talent
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onViewChange('find-work');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      activeView === 'find-work'
+                        ? 'text-brand-green'
+                        : 'text-gray-500 hover:text-brand-midnight dark:hover:text-white'
+                    }`}
+                  >
+                    <Briefcase size={15} />
+                    Find Work Feed
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (onNavigateToPostProject) {
+                        onNavigateToPostProject();
+                      } else {
+                        onViewChange('post-project');
+                      }
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      activeView === 'post-project'
+                        ? 'bg-brand-green text-white shadow-sm'
+                        : 'bg-brand-midnight/10 dark:bg-white/10 text-brand-midnight dark:text-white hover:bg-brand-green hover:text-white'
+                    }`}
+                  >
+                    + Post Project
+                  </button>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -148,10 +222,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Developers
               </button>
               <button
-                onClick={() => handleLinkClick('projects-section')}
-                className="text-sm font-medium text-gray-500 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white transition-colors cursor-pointer"
+                onClick={() => {
+                  onViewChange('find-work');
+                  setMobileMenuOpen(false);
+                }}
+                className={`text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  activeView === 'find-work'
+                    ? 'text-brand-green'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-brand-midnight dark:hover:text-white'
+                }`}
               >
-                Projects
+                <Briefcase size={14} />
+                Find Work
               </button>
               <button
                 onClick={() => handleLinkClick('why-section')}
@@ -204,10 +286,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               {onOpenAdminEmail && (
                 <button
                   onClick={onOpenAdminEmail}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1 cursor-pointer"
                   title="Admin Email Panel"
                 >
                   <ShieldAlert className="w-3.5 h-3.5" /> Admin
+                </button>
+              )}
+
+              {onOpenMigrationAudit && (
+                <button
+                  onClick={onOpenMigrationAudit}
+                  className="px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-500 dark:text-blue-400 text-xs font-bold hover:bg-blue-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Auth Data Audit & Migration"
+                >
+                  <Database className="w-3.5 h-3.5" /> Audit
                 </button>
               )}
 
@@ -236,20 +328,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
           ) : (
-            <>
-              <button
-                onClick={onLoginClick}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-brand-midnight transition-colors cursor-pointer"
-              >
-                Login
-              </button>
-              <button
-                onClick={onJoinClick}
-                className="px-5 py-2.5 rounded-[14px] bg-brand-green hover:bg-emerald-700 text-white font-medium text-sm transition-all shadow-sm hover:shadow-[0_4px_20px_rgba(15,138,95,0.2)] border border-transparent hover:border-brand-gold/20 cursor-pointer"
-              >
-                Join Registry
-              </button>
-            </>
+            <button
+              onClick={onLoginClick}
+              className="px-5 py-2.5 rounded-[14px] bg-brand-green hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-sm hover:shadow-[0_4px_20px_rgba(15,138,95,0.2)] border border-transparent hover:border-brand-gold/20 cursor-pointer"
+            >
+              Sign Up / Login
+            </button>
           )}
         </div>
 
@@ -309,6 +393,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={() => {
+                  onViewChange('find-work');
+                  setMobileMenuOpen(false);
+                }}
+                className="text-left text-base font-semibold text-brand-green py-1.5 flex items-center gap-2"
+              >
+                <Briefcase size={16} />
+                Find Work Feed
+              </button>
+              <button
+                onClick={() => {
                   onViewChange('dashboard');
                   setMobileMenuOpen(false);
                 }}
@@ -327,16 +421,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Search size={16} />
                 {userSession.accountType === 'developer' ? 'Browse Employers' : 'Browse Talent'}
               </button>
-              <button
-                onClick={() => {
-                  onViewChange('landing');
-                  setMobileMenuOpen(false);
-                }}
-                className="text-left text-base font-semibold text-gray-700 py-1.5 flex items-center gap-2"
-              >
-                <Home size={16} />
-                Landing Page
-              </button>
             </>
           ) : (
             <>
@@ -347,10 +431,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Developers
               </button>
               <button
-                onClick={() => handleLinkClick('projects-section')}
-                className="text-left text-base font-semibold text-gray-700 py-1 border-b border-gray-100"
+                onClick={() => {
+                  onViewChange('find-work');
+                  setMobileMenuOpen(false);
+                }}
+                className="text-left text-base font-semibold text-brand-green py-1 border-b border-gray-100 flex items-center gap-2"
               >
-                Projects
+                <Briefcase size={16} />
+                Find Work
               </button>
               <button
                 onClick={() => handleLinkClick('why-section')}
@@ -365,24 +453,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Testimonials
               </button>
               
-              <div className="flex gap-4 pt-4">
+              <div className="pt-4">
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     onLoginClick();
                   }}
-                  className="flex-1 py-3 text-center rounded-[14px] border border-brand-border text-sm font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                  className="w-full py-3 text-center rounded-[14px] bg-brand-green hover:bg-emerald-700 text-white text-sm font-semibold cursor-pointer shadow-sm"
                 >
-                  Login
-                </button>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onJoinClick();
-                  }}
-                  className="flex-1 py-3 text-center rounded-[14px] bg-brand-green hover:bg-emerald-700 text-white text-sm font-medium cursor-pointer"
-                >
-                  Join Registry
+                  Sign Up / Login
                 </button>
               </div>
             </>

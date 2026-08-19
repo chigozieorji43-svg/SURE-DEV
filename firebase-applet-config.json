@@ -3,6 +3,7 @@
   "appId": "1:444631149847:web:d41f61bc3fe1c14ac65b52",
   "apiKey": "AIzaSyCw3AX-h7dsBzf8lC0l8XVTaRbpMZdww54",
   "authDomain": "sure-dev-f514f.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-suredev-0327e6b3-12a8-409c-96be-d29ac518659e",
   "storageBucket": "sure-dev-f514f.firebasestorage.app",
   "messagingSenderId": "444631149847",
   "measurementId": "",
